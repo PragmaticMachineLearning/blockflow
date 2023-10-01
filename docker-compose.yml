@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  llmagic:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/llmagic
+    stdin_open: true  # Keep container running
+    tty: true         # Allocate a pseudo-TTY
