@@ -2,12 +2,13 @@ from rich import print
 from rich.layout import Layout
 from rich.panel import Panel
 
-from llmagic.block import Block, TextBlock
+from llmagic.block import Block, TextBlock, SectionBlock
 
 grandparent_block = (
-    Block(name="grandparent", max_tokens=5) + "this is a grandparent statement"
+    Block(name="grandparent", max_tokens=50, truncate="right")
+    + "this is a grandparent statement"
 )
-parent_block = Block(name="parent") + "this  is a parent statement"
+parent_block = Block(name="parent") + "this is a parent statement"
 child_a = TextBlock(
     name="child a",
     text="""The Cuban Revolution (Spanish: Revolución cubana) was a military and political effort to overthrow the government of Cuba between 1953 and 1959. It began after the 1952 Cuban coup d'état which placed Fulgencio Batista as head of state and the failed mass strike in opposition that followed. After failing to contest Batista in court, Fidel Castro organized an armed attack on the Cuban military's Moncada Barracks on July 26, 1953. The rebels were arrested and while in prison formed the 26th of July Movement. After gaining amnesty the M-26-7 rebels organized an expedition from Mexico on the Granma yacht to invade Cuba. In the following years the M-26-7 rebel army would slowly defeat the Cuban army in the countryside, while its urban wing would engage in sabotage and rebel army recruitment. Over time the originally critical and ambivalent Popular Socialist Party would come to support the 26th of July Movement in late 1958. By the time the rebels were to oust Batista the revolution was being driven by the Popular Socialist Party, 26th of July Movement, and the Revolutionary Directorate of March 13.[8]
@@ -20,5 +21,5 @@ child_b = TextBlock(
 )
 parent_block = parent_block + child_a + child_b
 grandparent_block += parent_block
-print(grandparent_block.text)
-print(grandparent_block.rich_text)
+print(grandparent_block.text())
+print(grandparent_block.rich_text())

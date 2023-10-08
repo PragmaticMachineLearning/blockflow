@@ -30,7 +30,10 @@ you get the behavior you want.
 
 ### Goals:
 - Make it easy to experiment with how you manage LLM memory
+- Queue Block
+- Compression via LLM summarization
 - Make it easy to control how your prompt is truncated
 - Make it easy to visualize your prompts
 - Make it easy to edit individual sections of your prompt indepedently
-- Make it easy to control where valid truncation points are (chars, words, sentences, paragraphs, etc.)
+- Make it easy to control where valid truncation points are (chars, tokens, words, sentences, paragraphs, newlines, etc.)
+- Truncation that appends ellipses to indicate content was truncated

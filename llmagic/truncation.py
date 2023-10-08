@@ -13,8 +13,9 @@ def truncate(
                 remainder_right = tokens[max_tokens:]
                 tokens = tokens[:max_tokens]
             case "left":
-                remainder_left = tokens[:-max_tokens]
-                tokens = tokens[-max_tokens:]
+                cutoff = size - max_tokens
+                remainder_left = tokens[:cutoff]
+                tokens = tokens[cutoff:]
             case _:
                 # No truncation
                 pass
@@ -23,3 +24,7 @@ def truncate(
         "remainder_right": remainder_right,
         "tokens": tokens,
     }
+
+
+def trim_to_boundary():
+    pass
