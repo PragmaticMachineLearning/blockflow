@@ -35,8 +35,7 @@ class AbstractBlock(ABC):
 
     def size(self):
         return len(self.tokens())
-    def add_ellipses(self, text:str, max_value:int|None) -> str:
-        pass
+
 
 class Block(AbstractBlock):
     def __init__(
@@ -47,12 +46,13 @@ class Block(AbstractBlock):
         max_tokens: int | None = None,
         truncate: TruncationStrategy = "right",
         separator: str = "",
+        ellipsis: bool = False,
     ):
         self.name = name
         self.max_tokens = max_tokens
         self.truncation_strategy: TruncationStrategy = truncate
         self.children = children if children is not None else []
-
+        self.ellipsis = ellipsis
         # TODO: make tokenizer configurable
         self.separator = separator
 
@@ -87,10 +87,8 @@ class Block(AbstractBlock):
             joined_tokens,
             max_tokens=self.max_tokens,
             truncation_strategy=self.truncation_strategy,
+            ellipsis=self.ellipsis,
         )["tokens"]
-
-    
-        
 
     def rich_text(
         self,
@@ -140,7 +138,12 @@ class Block(AbstractBlock):
         if isinstance(other, str):
             if self.separator and self.children:
                 self.children.append(TextBlock(text=self.separator, name="separator"))
-            self.children.append(TextBlock(text=other))
+            self.children.append(
+                TextBlock(
+                    text=other,
+                    ellipsis=self.ellipsis,
+                )
+            )
             return self
         elif isinstance(other, AbstractBlock):
             if self.separator and self.children:
@@ -163,36 +166,36 @@ class Block(AbstractBlock):
         pass
 
 
-class SectionBlock(Block):
-    def __init__(
-        self,
-        header: str,
-        children: list[AbstractBlock] | None = None,
-        text: str | None = None,
-        name: str | None = None,
-        max_tokens: int | None = None,
-        truncate: TruncationStrategy = "right",
-        separator: str = "",
-    ):
-        if children is None:
-            children = []
+# class SectionBlock(Block):
+#     def __init__(
+#         self,
+#         header: str,
+#         children: list[AbstractBlock] | None = None,
+#         text: str | None = None,
+#         name: str | None = None,
+#         max_tokens: int | None = None,
+#         truncate: TruncationStrategy = "right",
+#         separator: str = "",
+#     ):
+#         if children is None:
+#             children = []
 
-        if text is not None:
-            children = [TextBlock(text=text)] + children
+#         if text is not None:
+#             children = [TextBlock(text=text)] + children
 
-        if header is not None:
-            if not header.endswith("\n"):
-                header = header + "\n"
-            children = [TextBlock(text=header, name="header")] + children
+#         if header is not None:
+#             if not header.endswith("\n"):
+#                 header = header + "\n"
+#             children = [TextBlock(text=header, name="header")] + children
 
-        super().__init__(
-            children=children,
-            text=None,
-            name=name,
-            max_tokens=max_tokens,
-            truncate=truncate,
-            separator=separator,
-        )
+#         super().__init__(
+#             children=children,
+#             text=None,
+#             name=name,
+#             max_tokens=max_tokens,
+#             truncate=truncate,
+#             separator=separator,
+#         )
 
 
 class QueueBlock(Block):
@@ -211,10 +214,11 @@ class TextBlock(AbstractBlock):
     def __init__(
         self,
         text: str,
-        max_value: int|None = 3,
+        max_value: int | None = 3,
         name: str | None = None,
         max_tokens: int | None = None,
         truncate: TruncationStrategy = "right",
+        ellipsis: bool = False,
     ):
         self._text = text
         self._tokens = tokenizer.encode(text)
@@ -222,14 +226,7 @@ class TextBlock(AbstractBlock):
         self.max_tokens = max_tokens
         self.truncation_strategy: TruncationStrategy = truncate
         self.max_value = max_value
-
-    def add_ellipses(self, text:str, max_value:int|None) -> str:
-        if max_value is None:
-            max_value = self.max_value
-        elif len(text) > max_value:
-            return text[:max_value-3]+"..."
-        else:
-            return text
+        self.ellipsis = ellipsis
 
     def rich_text(
         self,
@@ -262,11 +259,10 @@ class TextBlock(AbstractBlock):
         )
         inner_text = tokenizer.decode(parent_truncated_tokens["tokens"])
 
-
         display_text = Text()
         display_text.append(left_text, style="bold magenta")
         display_text.append(inner_text, style="bold blue")
-        display_text.append(self.add_ellipses(right_text, self.max_value), style="bold magenta")
+        display_text.append(right_text, style="bold magenta")
 
         return Panel(
             display_text,
@@ -289,6 +285,7 @@ class TextBlock(AbstractBlock):
             self.full_tokens(),
             max_tokens=self.max_tokens,
             truncation_strategy=self.truncation_strategy,
+            ellipsis=self.ellipsis,
         )
         return truncated["tokens"]
 

@@ -28,6 +28,20 @@ def test_truncate_left():
     assert context.size() == 3
 
 
+def test_truncate_left_ellipsis():
+    context = Block(max_tokens=3, truncate="left", ellipsis=True)
+    context += "This is a sample prompt"
+    assert context.text() == "... sample prompt"
+    assert context.size() == 3
+
+
+def test_truncate_right_ellipsis():
+    context = Block(max_tokens=3, truncate="right", ellipsis=True)
+    context += "This is a sample prompt"
+    assert context.text() == "This is..."
+    assert context.size() == 3
+
+
 def test_block_hierarchy():
     context = Block(max_tokens=9, truncate="left")
     context += "This is a sample prompt"
