@@ -35,7 +35,8 @@ class AbstractBlock(ABC):
 
     def size(self):
         return len(self.tokens())
-
+    def add_ellipses(self, text:str, max_value:int|None) -> str:
+        pass
 
 class Block(AbstractBlock):
     def __init__(
@@ -70,7 +71,7 @@ class Block(AbstractBlock):
 
     def full_tokens(self) -> list[int]:
         joined_tokens: list[int] = []
-        for i, child in enumerate(self.children):
+        for _, child in enumerate(self.children):
             joined_tokens += child.full_tokens()
         return joined_tokens
 
@@ -79,7 +80,7 @@ class Block(AbstractBlock):
 
     def tokens(self) -> list[int]:
         joined_tokens: list[int] = []
-        for i, child in enumerate(self.children):
+        for _, child in enumerate(self.children):
             joined_tokens += child.tokens()
 
         return truncate(
@@ -87,6 +88,9 @@ class Block(AbstractBlock):
             max_tokens=self.max_tokens,
             truncation_strategy=self.truncation_strategy,
         )["tokens"]
+
+    
+        
 
     def rich_text(
         self,
@@ -207,6 +211,7 @@ class TextBlock(AbstractBlock):
     def __init__(
         self,
         text: str,
+        max_value: int|None = 3,
         name: str | None = None,
         max_tokens: int | None = None,
         truncate: TruncationStrategy = "right",
@@ -216,6 +221,15 @@ class TextBlock(AbstractBlock):
         self.name = name
         self.max_tokens = max_tokens
         self.truncation_strategy: TruncationStrategy = truncate
+        self.max_value = max_value
+
+    def add_ellipses(self, text:str, max_value:int|None) -> str:
+        if max_value is None:
+            max_value = self.max_value
+        elif len(text) > max_value:
+            return text[:max_value-3]+"..."
+        else:
+            return text
 
     def rich_text(
         self,
@@ -248,10 +262,11 @@ class TextBlock(AbstractBlock):
         )
         inner_text = tokenizer.decode(parent_truncated_tokens["tokens"])
 
+
         display_text = Text()
         display_text.append(left_text, style="bold magenta")
         display_text.append(inner_text, style="bold blue")
-        display_text.append(right_text, style="bold magenta")
+        display_text.append(self.add_ellipses(right_text, self.max_value), style="bold magenta")
 
         return Panel(
             display_text,
