@@ -58,7 +58,7 @@ class Block(AbstractBlock):
 
         if text is not None:
             prepend = [TextBlock(text=text)]
-            if self.separator:
+            if self.separator and self.children:
                 prepend.append(TextBlock(text=self.separator, name="separator"))
             self.children = prepend + self.children
 
@@ -104,7 +104,7 @@ class Block(AbstractBlock):
         tokens_seen = 0
 
         for child in self.children:
-            if not max_tokens or (tokens_seen + len(child.tokens())) < max_tokens:
+            if max_tokens is None or (tokens_seen + len(child.tokens())) < max_tokens:
                 # We can add this child and have tokens left over
                 rich_texts.append(child.rich_text())
                 tokens_seen += len(child.tokens())
@@ -271,6 +271,10 @@ class TextBlock(AbstractBlock):
             border_style="bold green",
         )
 
+    def __repr__(self):
+        return f'<Block name="{self.name}" size=[{self.full_size()}/{self.max_tokens or "inf"}] text="{self.text()[:25] + "..."}">'
+    
+    
     def full_text(self) -> str:
         return self._text
 
@@ -289,5 +293,4 @@ class TextBlock(AbstractBlock):
         )
         return truncated["tokens"]
 
-    def __repr__(self):
-        return f'<Block name="{self.name}" size=[{self.full_size()}/{self.max_tokens or "inf"}] text="{self.text()[:25] + "..."}">'
+    

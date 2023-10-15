@@ -11,9 +11,15 @@ python = "^3.10"
 tiktoken = "^0.5.1"
 rich = "^13.6.0"
 
+[tool.pytest.ini_options]
+addopts = "--cov --cov-report term-missing"
+
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.2"
+pytest-coverage = "^0.0"
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+
