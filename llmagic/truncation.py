@@ -1,18 +1,18 @@
 from llmagic.types import TruncationStrategy
-from llmagic.tokenizer import tokenizer
-
+from llmagic.tokenizer import create_tokenizer
 
 def truncate(
     tokens: list[int],
     max_tokens: int | None,
     truncation_strategy: TruncationStrategy,
     ellipsis: bool = False,
+    tokenizer_name: str|None = None
 ) -> dict[str, list[int]]:
     size = len(tokens)
     remainder_right = []
     remainder_left = []
-    ellipsis_tokens = tokenizer.encode("...")
-    n_ellipsis_tokens = len(ellipsis_tokens)
+    ellipsis_tokens: list[int] = create_tokenizer(tokenizer_name=tokenizer_name).encode("...")
+    n_ellipsis_tokens: int = len(ellipsis_tokens)
     if max_tokens is not None and size > max_tokens:
         match truncation_strategy:
             case "right":
@@ -20,9 +20,12 @@ def truncate(
                 tokens = tokens[:max_tokens]
                 if ellipsis:
                     for i in range(n_ellipsis_tokens):
-                        offset = max_tokens - n_ellipsis_tokens + i
-                        if 0 <= offset < len(tokens):
-                            tokens[offset] = ellipsis_tokens[i]
+                        if max_tokens < n_ellipsis_tokens:
+                            offset = 0
+                        else:
+                            offset = max_tokens - n_ellipsis_tokens + i
+                            if 0 <= offset < len(tokens):
+                                tokens[offset] = ellipsis_tokens[i]
             case "left":
                 cutoff = size - max_tokens
                 remainder_left = tokens[:cutoff]
@@ -42,4 +45,5 @@ def truncate(
 
 
 def trim_to_boundary():
+    # look up functions that chunk texts given certain contexts
     pass
