@@ -271,9 +271,7 @@ class TextBlock(AbstractBlock):
             border_style="bold green",
         )
 
-    def __repr__(self):
-        return f'<Block name="{self.name}" size=[{self.full_size()}/{self.max_tokens or "inf"}] text="{self.text()[:25] + "..."}">'
-    
+   
     
     def full_text(self) -> str:
         return self._text
@@ -292,5 +290,7 @@ class TextBlock(AbstractBlock):
             ellipsis=self.ellipsis,
         )
         return truncated["tokens"]
-
+    def __repr__(self):
+            return f'<Block name="{self.name}" size=[{self.full_size()}/{self.max_tokens or "inf"}] text="{self.text()[:25] + "..."}">'
+        
     

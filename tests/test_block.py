@@ -2,7 +2,6 @@ from llmagic.block import Block, TextBlock
 from llmagic.tokenizer import tokenizer
 from rich.panel import Panel
 import pytest
-from rich import print
 
 
 def test_create_block_with_text():
@@ -114,8 +113,8 @@ def test_truncate_right_ellipsis():
     assert context.size() == context.max_tokens
 
 def test_truncate_max_tokens():
-    block = Block(text="this is a sample text", max_tokens=0, ellipsis=True)
-    # assert block.max_tokens < len(tokenizer.encode("..."))
+    block = Block(text="this is a sample text", max_tokens=1, ellipsis=True)
+    assert block.text() == "this"
 
 def test_exceed_max_tokens():
     block = Block(text="this is a sample text", children=[Block(
