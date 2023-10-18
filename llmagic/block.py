@@ -1,3 +1,5 @@
+from typing import Callable
+
 from rich.panel import Panel
 from rich.console import Group
 from rich.style import Style
@@ -7,6 +9,7 @@ from abc import ABC, abstractmethod
 from llmagic.tokenizer import create_tokenizer
 from llmagic.types import TruncationStrategy
 from llmagic.truncation import truncate
+
 
 class AbstractBlock(ABC):
     @abstractmethod
@@ -35,6 +38,10 @@ class AbstractBlock(ABC):
     def size(self):
         return len(self.tokens())
 
+    @abstractmethod
+    def set_tokenizer(self, tokenizer):
+        pass
+
 
 class Block(AbstractBlock):
     def __init__(
@@ -46,19 +53,17 @@ class Block(AbstractBlock):
         truncate: TruncationStrategy = "right",
         separator: str = "",
         ellipsis: bool = False,
-        tokenizer: str|None = None
+        tokenizer: any = None,
     ):
-        
         self.name = name
         self.max_tokens = max_tokens
         self.truncation_strategy: TruncationStrategy = truncate
         self.children = children if children is not None else []
-        self.tokenizer = tokenizer
         self.ellipsis = ellipsis
         # TODO: make tokenizer configurable
         self.separator = separator
-        self._tokenizer = create_tokenizer(tokenizer_name=tokenizer)
-        
+        self._tokenizer = tokenizer
+
         if text is not None:
             prepend = [TextBlock(text=text)]
             if self.separator and self.children:
@@ -72,16 +77,29 @@ class Block(AbstractBlock):
                 f"max_tokens should be a positive integer and not {self.max_tokens}"
             )
 
+    def _ensure_tokenizer_set(self):
+        if self._tokenizer is None:
+            raise ValueError("Tokenizer must be explicitly provided")
+        self.set_tokenizer(self._tokenizer)
+
+    def set_tokenizer(self, tokenizer):
+        self._tokenizer = tokenizer
+        for child in self.children:
+            child.set_tokenizer(tokenizer=tokenizer)
+
     def full_tokens(self) -> list[int]:
+        self._ensure_tokenizer_set()
         joined_tokens: list[int] = []
         for _, child in enumerate(self.children):
             joined_tokens += child.full_tokens()
         return joined_tokens
 
     def full_text(self) -> str:
+        self._ensure_tokenizer_set()
         return self._tokenizer.decode(self.full_tokens())
 
     def tokens(self) -> list[int]:
+        self._ensure_tokenizer_set()
         joined_tokens: list[int] = []
         for _, child in enumerate(self.children):
             joined_tokens += child.tokens()
@@ -91,7 +109,7 @@ class Block(AbstractBlock):
             max_tokens=self.max_tokens,
             truncation_strategy=self.truncation_strategy,
             ellipsis=self.ellipsis,
-            tokenizer_name=self.tokenizer
+            tokenizer=self._tokenizer,
         )["tokens"]
 
     def rich_text(
@@ -99,6 +117,7 @@ class Block(AbstractBlock):
         max_tokens: int | None = None,
         truncation_strategy: TruncationStrategy | None = None,
     ) -> Panel:
+        self._ensure_tokenizer_set()
         if max_tokens is None:
             max_tokens = self.max_tokens
         if truncation_strategy is None:
@@ -130,6 +149,7 @@ class Block(AbstractBlock):
         )
 
     def text(self) -> str:
+        self._ensure_tokenizer_set()
         return self._tokenizer.decode(self.tokens())
 
     def __repr__(self):
@@ -142,12 +162,7 @@ class Block(AbstractBlock):
         if isinstance(other, str):
             if self.separator and self.children:
                 self.children.append(TextBlock(text=self.separator, name="separator"))
-            self.children.append(
-                TextBlock(
-                    text=other,
-                    ellipsis=self.ellipsis,
-                )
-            )
+            self.children.append(TextBlock(text=other, ellipsis=self.ellipsis))
             return self
         elif isinstance(other, AbstractBlock):
             if self.separator and self.children:
@@ -223,20 +238,19 @@ class TextBlock(AbstractBlock):
         max_tokens: int | None = None,
         truncate: TruncationStrategy = "right",
         ellipsis: bool = False,
-        tokenizer: str|None = None
+        tokenizer: any = None,
     ):
         self._text = text
-        
-        self._tokens = create_tokenizer().encode(text)
+        self._tokenizer = tokenizer
+        self._tokens = None
         self.name = name
         self.max_tokens = max_tokens
         self.truncation_strategy: TruncationStrategy = truncate
         self.max_value = max_value
         self.ellipsis = ellipsis
-        self.tokenizer = tokenizer
-        self._tokenizer = create_tokenizer(tokenizer_name=tokenizer)
 
-
+    def set_tokenizer(self, tokenizer):
+        self._tokenizer = tokenizer
 
     def rich_text(
         self,
@@ -252,13 +266,13 @@ class TextBlock(AbstractBlock):
             self.full_tokens(),
             max_tokens=self.max_tokens,
             truncation_strategy=self.truncation_strategy,
-            tokenizer_name=self.tokenizer
+            tokenizer=self._tokenizer,
         )
         parent_truncated_tokens = truncate(
             child_truncated_tokens["tokens"],
             max_tokens=max_tokens,
             truncation_strategy=truncation_strategy,
-            tokenizer_name=self.tokenizer
+            tokenizer=self._tokenizer,
         )
 
         left_text = self._tokenizer.decode(
@@ -283,12 +297,14 @@ class TextBlock(AbstractBlock):
             border_style="bold green",
         )
 
-   
-    
     def full_text(self) -> str:
         return self._text
 
     def full_tokens(self) -> list[int]:
+        if self._tokens == None:
+            if self._tokenizer is None:
+                raise ValueError("Tokenizer must be explicitly provided")
+            self._tokens = self._tokenizer.encode(self.full_text())
         return self._tokens
 
     def text(self) -> str:
@@ -300,11 +316,9 @@ class TextBlock(AbstractBlock):
             max_tokens=self.max_tokens,
             truncation_strategy=self.truncation_strategy,
             ellipsis=self.ellipsis,
-            tokenizer_name=self.tokenizer
+            tokenizer=self._tokenizer,
         )
         return truncated["tokens"]
-    
+
     def __repr__(self):
-            return f'<Block name="{self.name}" size=[{self.full_size()}/{self.max_tokens or "inf"}] text="{self.text()[:25] + "..."}">'
-        
-    
+        return f'<Block name="{self.name}" size=[{self.full_size()}/{self.max_tokens or "inf"}] text="{self.text()[:25] + "..."}">'

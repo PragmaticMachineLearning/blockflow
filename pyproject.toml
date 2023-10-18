@@ -10,9 +10,11 @@ readme = "README.md"
 python = "^3.10"
 tiktoken = "^0.5.1"
 rich = "^13.6.0"
+transformers = "^4.34.0"
+coverage = "^7.3.2"
 
 [tool.pytest.ini_options]
-addopts = "--cov --cov-report term-missing"
+addopts = ""
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.2"
