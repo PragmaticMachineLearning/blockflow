@@ -1,19 +1,23 @@
-from typing import Callable
+from typing import Callable, Literal
 
 from rich.panel import Panel
 from rich.console import Group
 from rich.style import Style
 from rich.text import Text
 from abc import ABC, abstractmethod
+from tokenizers import Encoding
 
 from llmagic.tokenizer import create_tokenizer
-from llmagic.types import TruncationStrategy
+from llmagic.dtypes import TruncationStrategy
 from llmagic.truncation import truncate
+
+
+Boundary = Literal["token", "whitespace", "sentence", "line", "paragraph"]
 
 
 class AbstractBlock(ABC):
     @abstractmethod
-    def full_tokens(self) -> list[int]:
+    def full_tokens(self) -> Encoding:
         pass
 
     @abstractmethod
@@ -21,7 +25,7 @@ class AbstractBlock(ABC):
         pass
 
     @abstractmethod
-    def tokens(self) -> list[int]:
+    def tokens(self) -> Encoding:
         pass
 
     @abstractmethod
@@ -33,10 +37,10 @@ class AbstractBlock(ABC):
         pass
 
     def full_size(self):
-        return len(self.full_tokens())
+        return len(self.full_tokens().tokens)
 
     def size(self):
-        return len(self.tokens())
+        return len(self.tokens().tokens)
 
     @abstractmethod
     def set_tokenizer(self, tokenizer):
@@ -54,6 +58,7 @@ class Block(AbstractBlock):
         separator: str = "",
         ellipsis: bool = False,
         tokenizer: any = None,
+        boundary: Boundary | None = None,
     ):
         self.name = name
         self.max_tokens = max_tokens
@@ -87,22 +92,24 @@ class Block(AbstractBlock):
         for child in self.children:
             child.set_tokenizer(tokenizer=tokenizer)
 
-    def full_tokens(self) -> list[int]:
+    def full_tokens(self) -> Encoding:
         self._ensure_tokenizer_set()
-        joined_tokens: list[int] = []
+        joined_tokens: list[Encoding] = []
         for _, child in enumerate(self.children):
             joined_tokens += child.full_tokens()
-        return joined_tokens
+        return Encoding.merge(joined_tokens)
 
     def full_text(self) -> str:
         self._ensure_tokenizer_set()
         return self._tokenizer.decode(self.full_tokens())
 
-    def tokens(self) -> list[int]:
+    def tokens(self) -> Encoding:
         self._ensure_tokenizer_set()
-        joined_tokens: list[int] = []
+        joined_tokens: list[Encoding] = []
         for _, child in enumerate(self.children):
             joined_tokens += child.tokens()
+
+        joined_tokens = Encoding.merge(joined_tokens)
 
         return truncate(
             joined_tokens,
@@ -239,6 +246,7 @@ class TextBlock(AbstractBlock):
         truncate: TruncationStrategy = "right",
         ellipsis: bool = False,
         tokenizer: any = None,
+        boundary: Boundary | None = None,
     ):
         self._text = text
         self._tokenizer = tokenizer
@@ -248,6 +256,7 @@ class TextBlock(AbstractBlock):
         self.truncation_strategy: TruncationStrategy = truncate
         self.max_value = max_value
         self.ellipsis = ellipsis
+        self.boundary = boundary
 
     def set_tokenizer(self, tokenizer):
         self._tokenizer = tokenizer
@@ -300,7 +309,7 @@ class TextBlock(AbstractBlock):
     def full_text(self) -> str:
         return self._text
 
-    def full_tokens(self) -> list[int]:
+    def full_tokens(self) -> Encoding:
         if self._tokens == None:
             if self._tokenizer is None:
                 raise ValueError("Tokenizer must be explicitly provided")
@@ -310,7 +319,7 @@ class TextBlock(AbstractBlock):
     def text(self) -> str:
         return self._tokenizer.decode(self.tokens())
 
-    def tokens(self):
+    def tokens(self) -> Encoding:
         truncated = truncate(
             self.full_tokens(),
             max_tokens=self.max_tokens,

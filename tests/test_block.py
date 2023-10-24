@@ -171,3 +171,14 @@ def test_block_hierarchy():
     context += "This is another prompt that's a bit longer"
     # First portion of context gets truncated
     assert context.text() == "This is another prompt that's a bit longer"
+
+
+def test_newline_boundary():
+    text_block = TextBlock(
+        text="This is the first line.\nThis is the second line that is a little bit longer.",
+        max_tokens=10,
+        truncate="right",
+        tokenizer=tokenizer,
+        boundary="line",
+    )
+    assert text_block.text() == "This is the first line."
