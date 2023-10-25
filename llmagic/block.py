@@ -1,18 +1,15 @@
+from abc import ABC, abstractmethod
 from typing import Callable, Literal
 
-from rich.panel import Panel
 from rich.console import Group
+from rich.panel import Panel
 from rich.style import Style
 from rich.text import Text
-from abc import ABC, abstractmethod
 from tokenizers import Encoding
 
-from llmagic.tokenizer import create_tokenizer
-from llmagic.dtypes import TruncationStrategy
+from llmagic.boundary import find_boundary_points
+from llmagic.dtypes import Boundary, TruncationStrategy
 from llmagic.truncation import truncate
-
-
-Boundary = Literal["token", "whitespace", "sentence", "line", "paragraph"]
 
 
 class AbstractBlock(ABC):
@@ -58,7 +55,7 @@ class Block(AbstractBlock):
         separator: str = "",
         ellipsis: bool = False,
         tokenizer: any = None,
-        boundary: Boundary | None = None,
+        boundary: Boundary = "token",
     ):
         self.name = name
         self.max_tokens = max_tokens
@@ -68,6 +65,18 @@ class Block(AbstractBlock):
         # TODO: make tokenizer configurable
         self.separator = separator
         self._tokenizer = tokenizer
+        self.boundary = boundary
+
+        if self.separator and self.children:
+            # Add separator object between each child
+            children_with_separators = []
+            for i, child in enumerate(self.children[:-1]):
+                children_with_separators.append(child)
+                children_with_separators.append(
+                    TextBlock(text=self.separator, name="separator")
+                )
+            children_with_separators.append(self.children[-1])
+            self.children = children_with_separators
 
         if text is not None:
             prepend = [TextBlock(text=text)]
@@ -81,6 +90,9 @@ class Block(AbstractBlock):
             raise ValueError(
                 f"max_tokens should be a positive integer and not {self.max_tokens}"
             )
+
+    def boundary_points(self):
+        return find_boundary_points(self.full_tokens(), self._tokenizer, self.boundary)
 
     def _ensure_tokenizer_set(self):
         if self._tokenizer is None:
@@ -96,27 +108,28 @@ class Block(AbstractBlock):
         self._ensure_tokenizer_set()
         joined_tokens: list[Encoding] = []
         for _, child in enumerate(self.children):
-            joined_tokens += child.full_tokens()
+            joined_tokens.append(child.full_tokens())
         return Encoding.merge(joined_tokens)
 
     def full_text(self) -> str:
         self._ensure_tokenizer_set()
-        return self._tokenizer.decode(self.full_tokens())
+        return self._tokenizer.decode(self.full_tokens().ids)
 
     def tokens(self) -> Encoding:
         self._ensure_tokenizer_set()
         joined_tokens: list[Encoding] = []
         for _, child in enumerate(self.children):
-            joined_tokens += child.tokens()
+            joined_tokens.append(child.tokens())
 
-        joined_tokens = Encoding.merge(joined_tokens)
+        joined: Encoding = Encoding.merge(joined_tokens)
 
         return truncate(
-            joined_tokens,
+            joined,
             max_tokens=self.max_tokens,
             truncation_strategy=self.truncation_strategy,
             ellipsis=self.ellipsis,
             tokenizer=self._tokenizer,
+            boundary_points=self.boundary_points(),
         )["tokens"]
 
     def rich_text(
@@ -134,10 +147,13 @@ class Block(AbstractBlock):
         tokens_seen = 0
 
         for child in self.children:
-            if max_tokens is None or (tokens_seen + len(child.tokens())) < max_tokens:
+            if (
+                max_tokens is None
+                or (tokens_seen + len(child.tokens().ids)) < max_tokens
+            ):
                 # We can add this child and have tokens left over
                 rich_texts.append(child.rich_text())
-                tokens_seen += len(child.tokens())
+                tokens_seen += len(child.tokens().ids)
             else:
                 # We exceed the max tokens amount
                 number_allowed = max(max_tokens - tokens_seen, 0)
@@ -157,7 +173,7 @@ class Block(AbstractBlock):
 
     def text(self) -> str:
         self._ensure_tokenizer_set()
-        return self._tokenizer.decode(self.tokens())
+        return self._tokenizer.decode(self.tokens().ids)
 
     def __repr__(self):
         return f'<Block name="{self.name}" size=[{self.full_size()}/{self.max_tokens or "inf"}] text="{self.text()[:25] + "..."}">'
@@ -246,7 +262,7 @@ class TextBlock(AbstractBlock):
         truncate: TruncationStrategy = "right",
         ellipsis: bool = False,
         tokenizer: any = None,
-        boundary: Boundary | None = None,
+        boundary: Boundary = "token",
     ):
         self._text = text
         self._tokenizer = tokenizer
@@ -257,6 +273,9 @@ class TextBlock(AbstractBlock):
         self.max_value = max_value
         self.ellipsis = ellipsis
         self.boundary = boundary
+
+    def boundary_points(self):
+        return find_boundary_points(self.full_tokens(), self._tokenizer, self.boundary)
 
     def set_tokenizer(self, tokenizer):
         self._tokenizer = tokenizer
@@ -271,13 +290,13 @@ class TextBlock(AbstractBlock):
         if truncation_strategy is None:
             truncation_strategy = self.truncation_strategy
 
-        child_truncated_tokens = truncate(
+        child_truncated_tokens: Encoding = truncate(
             self.full_tokens(),
             max_tokens=self.max_tokens,
             truncation_strategy=self.truncation_strategy,
             tokenizer=self._tokenizer,
         )
-        parent_truncated_tokens = truncate(
+        parent_truncated_tokens: Encoding = truncate(
             child_truncated_tokens["tokens"],
             max_tokens=max_tokens,
             truncation_strategy=truncation_strategy,
@@ -285,14 +304,22 @@ class TextBlock(AbstractBlock):
         )
 
         left_text = self._tokenizer.decode(
-            child_truncated_tokens["remainder_left"]
-            + parent_truncated_tokens["remainder_left"]
+            Encoding.merge(
+                [
+                    child_truncated_tokens["remainder_left"],
+                    parent_truncated_tokens["remainder_left"],
+                ]
+            ).ids
         )
         right_text = self._tokenizer.decode(
-            parent_truncated_tokens["remainder_right"]
-            + child_truncated_tokens["remainder_right"]
+            Encoding.merge(
+                [
+                    parent_truncated_tokens["remainder_right"],
+                    child_truncated_tokens["remainder_right"],
+                ]
+            ).ids
         )
-        inner_text = self._tokenizer.decode(parent_truncated_tokens["tokens"])
+        inner_text = self._tokenizer.decode(parent_truncated_tokens["tokens"].ids)
 
         display_text = Text()
         display_text.append(left_text, style="bold magenta")
@@ -317,7 +344,7 @@ class TextBlock(AbstractBlock):
         return self._tokens
 
     def text(self) -> str:
-        return self._tokenizer.decode(self.tokens())
+        return self._tokenizer.decode(self.tokens().ids)
 
     def tokens(self) -> Encoding:
         truncated = truncate(
@@ -326,6 +353,7 @@ class TextBlock(AbstractBlock):
             truncation_strategy=self.truncation_strategy,
             ellipsis=self.ellipsis,
             tokenizer=self._tokenizer,
+            boundary_points=self.boundary_points(),
         )
         return truncated["tokens"]
 

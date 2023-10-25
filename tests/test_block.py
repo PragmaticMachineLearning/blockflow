@@ -1,7 +1,8 @@
+import pytest
+from rich.panel import Panel
+
 from llmagic.block import Block, TextBlock
 from llmagic.tokenizer import create_tokenizer
-from rich.panel import Panel
-import pytest
 
 tokenizer = create_tokenizer()
 
@@ -104,7 +105,7 @@ def test_textblock_text():
 
 def test_textblock_tokens_and_representation():
     text_block = TextBlock(text="this is a sample text", tokenizer=tokenizer)
-    assert text_block.full_tokens() == tokenizer.encode(text_block.text())
+    assert text_block.full_tokens().ids == tokenizer.encode(text_block.text()).ids
     assert (
         text_block.__repr__()
         == '<Block name="None" size=[5/inf] text="this is a sample text...">'
@@ -173,7 +174,7 @@ def test_block_hierarchy():
     assert context.text() == "This is another prompt that's a bit longer"
 
 
-def test_newline_boundary():
+def test_newline_boundary_right():
     text_block = TextBlock(
         text="This is the first line.\nThis is the second line that is a little bit longer.",
         max_tokens=10,
@@ -182,3 +183,32 @@ def test_newline_boundary():
         boundary="line",
     )
     assert text_block.text() == "This is the first line."
+
+
+def test_newline_boundary_left():
+    text_block = TextBlock(
+        text="This is the first line.\nThis is the second line that is longer.",
+        max_tokens=10,
+        truncate="left",
+        tokenizer=tokenizer,
+        boundary="line",
+    )
+    assert text_block.text() == "This is the second line that is longer."
+
+
+def test_newline_boundary_parent():
+    child_a = TextBlock(
+        text="This is the first line.",
+    )
+    child_b = TextBlock(
+        text="This is the second line that is longer.",
+    )
+    parent = Block(
+        children=[child_a, child_b],
+        max_tokens=10,
+        truncate="right",
+        tokenizer=tokenizer,
+        boundary="line",
+        separator="\n",
+    )
+    assert parent.text() == "This is the first line."
