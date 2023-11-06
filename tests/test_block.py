@@ -196,6 +196,50 @@ def test_newline_boundary_left():
     assert text_block.text() == "This is the second line that is longer."
 
 
+def test_whitespace_boundary_right():
+    text_block = TextBlock(
+        text="Go to https://www.google.com/search?q=how+to+cancel+vscode+testing&oq=how+to+cancel+vscode+testing+&gs_lcrp=EgZjaHJvbWUyBggAEEUYOTIGCAEQLhhA0gEIODY5MGowajGoAgCwAgA&sourceid=chrome&ie=UTF-8",
+        max_tokens=6,
+        truncate="right",
+        tokenizer=tokenizer,
+        boundary="whitespace",
+    )
+    assert text_block.text() == "Go to"
+
+
+def test_whitespace_boundary_left():
+    text_block = TextBlock(
+        text="Go to https://www.google.com/search?q=how+to+cancel+vscode+testing&oq=how+to+cancel+vscode+testing+&gs_lcrp=EgZjaHJvbWUyBggAEEUYOTIGCAEQLhhA0gEIODY5MGowajGoAgCwAgA&sourceid=chrome&ie=UTF-8",
+        max_tokens=6,
+        truncate="left",
+        tokenizer=tokenizer,
+        boundary="whitespace",
+    )
+    assert text_block.text() == ""
+
+
+def test_sentence_boundary_right():
+    text_block = TextBlock(
+        text="This is the first sentence. Here is another sentence.",
+        max_tokens=6,
+        truncate="right",
+        tokenizer=tokenizer,
+        boundary="sentence",
+    )
+    assert text_block.text() == "This is the first sentence."
+
+
+def test_sentence_boundary_left():
+    text_block = TextBlock(
+        text="This is the first sentence.Here is another sentence.",
+        max_tokens=5,
+        truncate="left",
+        tokenizer=tokenizer,
+        boundary="sentence",
+    )
+    assert text_block.text() == "Here is another sentence."
+
+
 def test_newline_boundary_parent():
     child_a = TextBlock(
         text="This is the first line.",
