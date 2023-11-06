@@ -52,8 +52,6 @@ def find_boundary_points(encoding, tokenizer, boundary: Boundary) -> list[int]:
                 words.append(token)
 
         sentence_words = [word for sentence in doc.sents for word in sentence]
-        print("sentence words", sentence_words)
-        print("token words", words)
         char_offsets = get_offsets(sentence_words)
         print("character offsets", char_offsets)
         for char_offset in char_offsets:
@@ -65,28 +63,7 @@ def find_boundary_points(encoding, tokenizer, boundary: Boundary) -> list[int]:
                 if token_start <= char_start < token_end:
                     boundary_points.append(idx)
             print("token offsets", token_offsets)
-            
-        # for sentence in doc.sents:
-        #     # Get the start and end offset of a word in a given sentence
-        #     for word in sentence:
-        #         print(type(word))
-        #         text: str = word.text
-        #         char_start: int = start_offset
-        #         char_end: int = char_start + len(text)
-        #         print("char offsets", (char_start, char_end))
-        #         # for idx, offset in enumerate(encoding.offsets):
-        #         #     start, end = offset
-        #         #     if start <= char_start < end:
-        #         #         boundary_points.append(idx)
-        #         # start_offset = char_end
-
-        #         offsets = get_offsets(words)
-        #         for idx, offset in enumerate(offsets):
-        #             token_start, token_end = offset
-        #             if token_start <= char_start < token_end:
-        #                 boundary_points.append(idx)
-        #         print("token offsets", offsets)
-        #         start_offset = char_end + 1
+        
     else:
         raise NotImplementedError(f"Boundary {boundary} not implemented")
     return boundary_points
