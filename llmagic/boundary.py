@@ -7,7 +7,7 @@ nlp = spacy.load("en_core_web_sm")
 def get_offsets(words: list[str]) -> list[tuple[int]]:
     start_offset = 0
     result: list[tuple[int]] = []
-    
+
     for word in words:
         start: int = start_offset
         end: int = start + len(word)
@@ -55,14 +55,14 @@ def find_boundary_points(encoding, tokenizer, boundary: Boundary) -> list[int]:
         print("character offsets", char_offsets)
         for char_offset in char_offsets:
             char_start, char_end = char_offset
-            
-            token_offsets = get_offsets(words)
+
+            token_offsets = get_offsets(token_words)
             for idx, token_offset in enumerate(token_offsets):
                 token_start, token_end = token_offset
                 if token_start <= char_start < token_end:
                     boundary_points.append(idx)
             print("token offsets", token_offsets)
-        
+
     else:
         raise NotImplementedError(f"Boundary {boundary} not implemented")
     return boundary_points
