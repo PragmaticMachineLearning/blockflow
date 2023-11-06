@@ -42,14 +42,13 @@ def find_boundary_points(encoding, tokenizer, boundary: Boundary) -> list[int]:
     elif boundary == "sentence":
         decoded_text = tokenizer.decode(encoding.ids)
         doc = nlp(decoded_text)
-        start_offset: int = 0
-        words = []
+        token_words = []
 
         for token in encoding.tokens:
             if token.startswith("Ġ"):
-                words.append(token.replace("Ġ", ""))
+                token_words.append(token.replace("Ġ", ""))
             else:
-                words.append(token)
+                token_words.append(token)
 
         sentence_words = [word for sentence in doc.sents for word in sentence]
         char_offsets = get_offsets(sentence_words)
