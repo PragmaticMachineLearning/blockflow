@@ -1,22 +1,26 @@
-from llmagic.dtypes import Boundary
-import spacy
-
-nlp = spacy.load("en_core_web_sm")
+from llmagic.dtypes import Boundary, TruncationStrategy
 
 
-def get_offsets(words: list[str]) -> list[tuple[int]]:
-    start_offset = 0
-    result: list[tuple[int]] = []
+class SpacyPlugin:
+    def __init__(self):
+        self.nlp = None
 
-    for word in words:
-        start: int = start_offset
-        end: int = start + len(word)
-        result.append((start, end))
-        start_offset = end + 1
-    return result
+    @property
+    def sentence_splitter(self):
+        import spacy
+
+        if self.nlp is None:
+            self.nlp = spacy.blank("en")
+            self.nlp.add_pipe("sentencizer")
+        return self.nlp
 
 
-def find_boundary_points(encoding, tokenizer, boundary: Boundary) -> list[int]:
+SPACY_MODEL = SpacyPlugin()
+
+
+def find_boundary_points(
+    encoding, tokenizer, boundary: Boundary, truncate: TruncationStrategy
+) -> list[int]:
     """
     Return token indices that correspond to valid boundary points
     """
@@ -25,7 +29,6 @@ def find_boundary_points(encoding, tokenizer, boundary: Boundary) -> list[int]:
         return list(range(len(encoding.ids)))
     elif boundary == "line":
         boundary_token = tokenizer.encode("\n").ids[0]
-        print(boundary_points)
         boundary_points.extend(
             [i for i, token in enumerate(encoding.ids) if token == boundary_token]
         )
@@ -41,27 +44,24 @@ def find_boundary_points(encoding, tokenizer, boundary: Boundary) -> list[int]:
 
     elif boundary == "sentence":
         decoded_text = tokenizer.decode(encoding.ids)
-        doc = nlp(decoded_text)
-        token_words = []
+        doc = SPACY_MODEL.sentence_splitter(decoded_text)
 
-        for token in encoding.tokens:
-            if token.startswith("Ġ"):
-                token_words.append(token.replace("Ġ", ""))
-            else:
-                token_words.append(token)
-
-        sentence_words = [word for sentence in doc.sents for word in sentence]
-        char_offsets = get_offsets(sentence_words)
-        print("character offsets", char_offsets)
-        for char_offset in char_offsets:
-            char_start, char_end = char_offset
-
-            token_offsets = get_offsets(token_words)
-            for idx, token_offset in enumerate(token_offsets):
-                token_start, token_end = token_offset
-                if token_start <= char_start < token_end:
-                    boundary_points.append(idx)
-            print("token offsets", token_offsets)
+        search_start_idx = 0
+        for sent_idx, sentence in enumerate(doc.sents):
+            for offset_idx, (token_char_start, token_char_end) in enumerate(
+                encoding.offsets[search_start_idx:]
+            ):
+                token_idx = search_start_idx + offset_idx
+                if truncate == "right":
+                    if token_char_start <= sentence.start_char <= token_char_end:
+                        boundary_points.append(token_idx)
+                        search_start_idx = token_idx
+                        break
+                elif truncate == "left":
+                    if token_char_start <= sentence.end_char <= token_char_end:
+                        boundary_points.append(token_idx)
+                        search_start_idx = token_idx
+                        break
 
     else:
         raise NotImplementedError(f"Boundary {boundary} not implemented")

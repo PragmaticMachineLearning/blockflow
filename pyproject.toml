@@ -7,11 +7,12 @@ license = "Apache 2.0"
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = "^3.10,<3.12"
 tiktoken = "^0.5.1"
 rich = "^13.6.0"
 transformers = "^4.34.0"
 coverage = "^7.3.2"
+spacy = "^3.7.2"
 
 [tool.pytest.ini_options]
 addopts = ""
@@ -19,6 +20,9 @@ addopts = ""
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.2"
 pytest-coverage = "^0.0"
+llama-index = "^0.9.3.post1"
+rank-bm25 = "^0.2.2"
+matplotlib = "^3.8.2"
 
 [build-system]
 requires = ["poetry-core"]

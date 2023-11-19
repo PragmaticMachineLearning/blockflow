@@ -92,7 +92,12 @@ class Block(AbstractBlock):
             )
 
     def boundary_points(self):
-        return find_boundary_points(self.full_tokens(), self._tokenizer, self.boundary)
+        return find_boundary_points(
+            encoding=self.full_tokens(),
+            tokenizer=self._tokenizer,
+            boundary=self.boundary,
+            truncate=self.truncation_strategy,
+        )
 
     def _ensure_tokenizer_set(self):
         if self._tokenizer is None:
@@ -275,7 +280,12 @@ class TextBlock(AbstractBlock):
         self.boundary = boundary
 
     def boundary_points(self):
-        return find_boundary_points(self.full_tokens(), self._tokenizer, self.boundary)
+        return find_boundary_points(
+            encoding=self.full_tokens(),
+            tokenizer=self._tokenizer,
+            boundary=self.boundary,
+            truncate=self.truncation_strategy,
+        )
 
     def set_tokenizer(self, tokenizer):
         self._tokenizer = tokenizer

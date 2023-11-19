@@ -218,26 +218,73 @@ def test_whitespace_boundary_left():
     assert text_block.text() == ""
 
 
-def test_sentence_boundary_right():
+@pytest.mark.parametrize(
+    "text, max_tokens, truncate, expected",
+    [
+        # Excess whitespace is because of token boundary
+        ("Sentence one. Sentence two.", 3, "left", " Sentence two."),
+        (
+            "This is the first sentence. Here is another sentence.",
+            7,
+            "left",
+            " Here is another sentence.",
+        ),
+        ("This is a short sentence. This is a longer sentence.", 4, "left", ""),
+        (
+            "This is the first sentence. Here is another sentence.",
+            7,
+            "right",
+            "This is the first sentence.",
+        ),
+        (
+            "This is the first sentence. Here is another sentence.",
+            3,
+            "right",
+            "",
+        ),
+        (
+            "This is the first sentence. Here is another sentence.",
+            8,
+            "right",
+            "This is the first sentence.",
+        ),
+        (
+            "This is the first sentence. This is the second sentence. This is the third sentence.",
+            12,
+            "right",
+            "This is the first sentence. This is the second sentence.",
+        ),
+    ],
+)
+def test_sentence_boundary(text, max_tokens, truncate, expected):
     text_block = TextBlock(
-        text="This is the first sentence. Here is another sentence.",
-        max_tokens=6,
+        text=text,
+        max_tokens=max_tokens,
+        truncate=truncate,
+        tokenizer=tokenizer,
+        boundary="sentence",
+    )
+    assert text_block.text() == expected
+
+
+@pytest.mark.parametrize(
+    "truncate,expected",
+    [
+        ("right", "This is the first sentence."),
+        ("left", " This is the second sentence."),
+    ],
+)
+def test_sentence_boundary_parent(truncate, expected):
+    block = Block(
+        max_tokens=7,
         truncate="right",
         tokenizer=tokenizer,
         boundary="sentence",
+        separator="\n",
     )
-    assert text_block.text() == "This is the first sentence."
-
-
-def test_sentence_boundary_left():
-    text_block = TextBlock(
-        text="This is the first sentence.Here is another sentence.",
-        max_tokens=5,
-        truncate="left",
-        tokenizer=tokenizer,
-        boundary="sentence",
-    )
-    assert text_block.text() == "Here is another sentence."
+    block += "This is the first sentence."
+    block += "This is the second sentence."
+    assert block.text() == "This is the first sentence."
 
 
 def test_newline_boundary_parent():
