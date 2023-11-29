@@ -4,7 +4,7 @@ from typing import Callable
 from tokenizers import Encoding
 
 from llmagic.dtypes import TruncationStrategy
-
+from llmagic.errors import TruncationError
 
 def truncate_encoding(self, *args, **kwargs):
     copied = copy.deepcopy(self)
@@ -85,6 +85,13 @@ def truncate(
                     tokens = add_ellipsis_token(
                         tokens, ellipsis_token=ellipsis_tokens, direction="left"
                     )
+                    
+            case "never":
+                if size > max_tokens:
+                    raise TruncationError(
+                        f"Cannot truncate to {max_tokens} tokens when truncate is 'never'."
+                    )
+                
             case _:
                 # No truncation
                 pass

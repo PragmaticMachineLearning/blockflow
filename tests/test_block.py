@@ -3,6 +3,7 @@ from rich.panel import Panel
 
 from llmagic.block import Block, TextBlock
 from llmagic.tokenizer import create_tokenizer
+from llmagic.errors import TruncationError
 
 tokenizer = create_tokenizer()
 
@@ -125,7 +126,14 @@ def test_truncate_left():
     assert context.text() == " a sample prompt"
     assert context.size() == context.max_tokens
 
-
+def test_truncate_never():
+    context = Block(max_tokens=3, truncate="never", tokenizer=tokenizer)
+    context += "This is a sample prompt"
+    
+    with pytest.raises(TruncationError):
+        context.text()
+    
+    
 def test_truncate_left_ellipsis():
     context = Block(max_tokens=3, truncate="left", ellipsis=True, tokenizer=tokenizer)
     context += "This is a sample prompt"
