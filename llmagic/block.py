@@ -329,10 +329,11 @@ class TextBlock(AbstractBlock):
         if truncation_strategy is None:
             truncation_strategy = self.truncation_strategy
 
+        display_text = Text()
         
         if truncation_strategy == "never":
             full_text = self._tokenizer.decode(self.full_tokens().ids)
-            displayed_text = Text(full_text)
+            display_text = Text(full_text)
         
         else:    
             child_truncated_tokens: Encoding = truncate(
@@ -366,7 +367,6 @@ class TextBlock(AbstractBlock):
             )
             inner_text = self._tokenizer.decode(parent_truncated_tokens["tokens"].ids)
 
-            display_text = Text()
             display_text.append(left_text, style="bold magenta")
             display_text.append(inner_text, style="bold blue")
             display_text.append(right_text, style="bold magenta")
@@ -404,7 +404,7 @@ class TextBlock(AbstractBlock):
                 tokenizer=self._tokenizer,
                 boundary_points=self.boundary_points(),
             )
-        return truncated["tokens"]
+            return truncated["tokens"]
 
     def __repr__(self):
         return f'<Block name="{self.name}" size=[{self.full_size()}/{self.max_tokens or "inf"}] text="{self.text()[:25] + "..."}">'
