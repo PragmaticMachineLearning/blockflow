@@ -126,14 +126,41 @@ def test_truncate_left():
     assert context.text() == " a sample prompt"
     assert context.size() == context.max_tokens
 
+
 def test_truncate_never():
     context = Block(max_tokens=3, truncate="never", tokenizer=tokenizer)
     context += "This is a sample prompt"
-    
+
     with pytest.raises(TruncationError):
         context.text()
-    
-    
+
+
+def test_block_truncate_never():
+    context = Block(truncate="never", tokenizer=tokenizer)
+    context += "This is a sample prompt"
+    assert context.text() == "This is a sample prompt"
+
+
+def test_block_truncate_never_with_parent():
+    child_block_1 = TextBlock(
+        text="this is a prompt",
+        name="child block 1",
+        truncate="right",
+        tokenizer=tokenizer,
+    )
+    child_block_2 = TextBlock(
+        text="this is a sample prompt",
+        name="child block 2",
+        truncate="never",
+        tokenizer=tokenizer,
+    )
+    parent = Block(
+        name="parent block", children=[child_block_1, child_block_2], max_tokens=5
+    )
+    assert parent[1].text() == "this is a sample prompt"
+    assert parent[0].text() == ""
+
+
 def test_truncate_left_ellipsis():
     context = Block(max_tokens=3, truncate="left", ellipsis=True, tokenizer=tokenizer)
     context += "This is a sample prompt"

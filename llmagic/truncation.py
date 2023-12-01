@@ -31,11 +31,11 @@ def add_ellipsis_token(tokens, ellipsis_token, direction="right"):
 
 
 def process_boundary_points(
-    boundary_points: list[int], max_tokens: int, size: int = None, direction="right"
+    boundary_points: list[int], max_tokens: int, token_size: int = None, direction="right"
 ) -> int:
     if boundary_points is not None:
         if direction == "left":
-            while (size - max_tokens - 1) not in boundary_points and max_tokens > 0:
+            while (token_size - max_tokens - 1) not in boundary_points and max_tokens > 0:
                 max_tokens -= 1
         elif direction == "right":
             while max_tokens not in boundary_points and max_tokens > 0:
@@ -52,18 +52,18 @@ def truncate(
     ellipsis: bool = False,
     boundary_points: list[int] | None = None,
 ) -> dict[str, Encoding]:
-    size = len(tokens.ids)
+    token_size = len(tokens.ids)
     remainder_right = Encoding()
     remainder_left = Encoding()
     ellipsis_tokens: Encoding = tokenizer.encode("...")
     # n_ellipsis_tokens: int = len(ellipsis_tokens.ids)
-    if max_tokens is not None and size > max_tokens:
+    if max_tokens is not None and token_size > max_tokens:
         match truncation_strategy:
             case "right":
                 processed_max_tokens = process_boundary_points(
                     boundary_points, max_tokens, direction="right"
                 )
-                cutoff = size - processed_max_tokens
+                cutoff = token_size - processed_max_tokens
                 remainder_right = truncate_encoding(tokens, cutoff, direction="left")
                 tokens = truncate_encoding(
                     tokens, processed_max_tokens, direction="right"
@@ -74,9 +74,9 @@ def truncate(
                     )
             case "left":
                 processed_max_tokens = process_boundary_points(
-                    boundary_points, max_tokens, size, direction="left"
+                    boundary_points, max_tokens, token_size, direction="left"
                 )
-                cutoff = size - processed_max_tokens
+                cutoff = token_size - processed_max_tokens
                 remainder_left = truncate_encoding(tokens, cutoff, direction="right")
                 tokens = truncate_encoding(
                     tokens, processed_max_tokens, direction="left"
@@ -87,7 +87,7 @@ def truncate(
                     )
                     
             case "never":
-                if size > max_tokens:
+                if token_size > max_tokens:
                     raise TruncationError(
                         f"Cannot truncate to {max_tokens} tokens when truncate is 'never'."
                     )
