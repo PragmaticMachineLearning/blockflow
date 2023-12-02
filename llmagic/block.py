@@ -100,6 +100,35 @@ class Block(AbstractBlock):
                 f"max_tokens should be a positive integer and not {self.max_tokens}"
             )
 
+        self._validate_children_max_tokens()
+
+    def _validate_children_max_tokens(self):
+        # Only proceed if the parent has a max_tokens limit set
+        if self.max_tokens is None:
+            return
+
+        total_tokens_count: int = sum(
+            child.max_tokens
+            for child in self.children
+            if child.truncation_strategy == "never" and child.max_tokens is not None
+        )
+
+        # Check if any child's max_tokens exceed the parent's max_tokens
+        for child in self.children:
+            if child.truncation_strategy == "never" and child.max_tokens is not None:
+                if child.max_tokens > self.max_tokens:
+                    raise ValueError(
+                        f"Child '{child.name}' has max_tokens ({child.max_tokens}) "
+                        f"exceeding the parent's max_tokens ({self.max_tokens})."
+                    )
+
+        # Check if the total tokens of all children exceed the parent's max_tokens
+        if total_tokens_count > self.max_tokens:
+            raise ValueError(
+                "Total max_tokens of children with 'never' truncation strategy "
+                f"({total_tokens_count}) exceeds the parent's max_tokens ({self.max_tokens})."
+            )
+
     def boundary_points(self):
         return find_boundary_points(
             encoding=self.full_tokens(),
@@ -173,7 +202,7 @@ class Block(AbstractBlock):
 
             if child.truncation_strategy == "never":
                 rich_texts.append(child.rich_text())
-                
+
             elif max_tokens is None or (tokens_seen + len(child_tokens) < max_tokens):
                 # We can add this child and have tokens left over
                 rich_texts.append(child.rich_text())
@@ -330,12 +359,12 @@ class TextBlock(AbstractBlock):
             truncation_strategy = self.truncation_strategy
 
         display_text = Text()
-        
+
         if truncation_strategy == "never":
             full_text = self._tokenizer.decode(self.full_tokens().ids)
             display_text = Text(full_text)
-        
-        else:    
+
+        else:
             child_truncated_tokens: Encoding = truncate(
                 self.full_tokens(),
                 max_tokens=self.max_tokens,
@@ -404,7 +433,7 @@ class TextBlock(AbstractBlock):
                 tokenizer=self._tokenizer,
                 boundary_points=self.boundary_points(),
             )
-            return truncated["tokens"]
+        return truncated["tokens"]
 
     def __repr__(self):
         return f'<Block name="{self.name}" size=[{self.full_size()}/{self.max_tokens or "inf"}] text="{self.text()[:25] + "..."}">'
