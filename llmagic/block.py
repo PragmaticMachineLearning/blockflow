@@ -58,19 +58,60 @@ class Block(AbstractBlock):
         boundary: Boundary = "token",
     ):
         # Initialize the Block with various parameters including children, text, name, etc.
+        self._initialize_basic_properties(
+            children,
+            text,
+            name,
+            max_tokens,
+            truncate,
+            separator,
+            ellipsis,
+            tokenizer,
+            boundary,
+        )
+        # If a separator is specified and there are children, insert a separator TextBlock between each child
+        self._insert_separators()
 
+        # If text is provided, create a TextBlock from it and prepend it to the children
+        self._prepend_text_block(text)
+
+        # validate children with truncate == "never" max_tokens < self.max_token
+        self._validate_children_max_tokens()
+
+
+    def _initialize_basic_properties(
+        self,
+        children,
+        text,
+        name,
+        max_tokens,
+        truncate,
+        separator,
+        ellipsis,
+        tokenizer,
+        boundary,
+    ):
+        """
+        Initializes the basic properties of the Block.
+        """
         self.name = name
         self.max_tokens = max_tokens
-        self.truncation_strategy: TruncationStrategy = truncate
-        self.children = (
-            children if children is not None else []
-        )  # Set children to an empty list if None is passed
-        self.ellipsis = ellipsis
+        self.truncation_strategy = truncate
         self.separator = separator
+        self.ellipsis = ellipsis
         self._tokenizer = tokenizer
         self.boundary = boundary
 
-        # If a separator is specified and there are children, insert a separator TextBlock between each child
+        # Initialize children to an empty list if None is passed
+        self.children = children if children is not None else []
+
+        # Validation for max_tokens
+        if self.max_tokens is not None and self.max_tokens < 0:
+            raise ValueError(
+                f"max_tokens should be a positive integer, not {self.max_tokens}"
+            )
+
+    def _insert_separators(self):
         if self.separator and self.children:
             # Add separator object between each child
             children_with_separators = []
@@ -83,24 +124,13 @@ class Block(AbstractBlock):
             children_with_separators.append(self.children[-1])
             self.children = children_with_separators
 
-        # If text is provided, create a TextBlock from it and prepend it to the children
+    def _prepend_text_block(self, text:str):
         if text is not None:
             prepend = [TextBlock(text=text)]
             # If there are already children and a separator is defined, add a separator TextBlock after the new text block
             if self.separator and self.children:
                 prepend.append(TextBlock(text=self.separator, name="separator"))
             self.children = prepend + self.children
-
-        # Check if max_tokens is provided and valid
-        if self.max_tokens is None:
-            pass  # do nothing if max_tokens is not provided
-        elif self.max_tokens < 0:
-            # raise an error if max_tokens is negative
-            raise ValueError(
-                f"max_tokens should be a positive integer and not {self.max_tokens}"
-            )
-
-        self._validate_children_max_tokens()
 
     def _validate_children_max_tokens(self):
         # Only proceed if the parent has a max_tokens limit set
@@ -161,7 +191,7 @@ class Block(AbstractBlock):
     def tokens(self) -> Encoding:
         self._ensure_tokenizer_set()
         joined_tokens: list[Encoding] = []
-        for _, child in enumerate(self.children):
+        for child in self.children:
             if child.truncation_strategy == "never":
                 joined_tokens.append(child.full_tokens())
             else:
@@ -194,11 +224,6 @@ class Block(AbstractBlock):
 
         for child in self.children:
             child_tokens = child.tokens().ids
-            child_trucation_strategy = (
-                child.truncation_strategy
-                if hasattr(child, "truncation_strategy")
-                else truncation_strategy
-            )
 
             if child.truncation_strategy == "never":
                 rich_texts.append(child.rich_text())
@@ -248,7 +273,7 @@ class Block(AbstractBlock):
         else:
             raise TypeError(f"Cannot add type {type(other)} to Block")
 
-    def __getitem__(self, key):
+    def __getitem__(self, key) -> AbstractBlock:
         if isinstance(key, str):
             for child in self.children:
                 if child.name == key:
