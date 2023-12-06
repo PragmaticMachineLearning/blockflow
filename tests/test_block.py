@@ -143,10 +143,11 @@ def test_block_truncate_never():
 
 def test_block_truncate_never_with_parent():
     child_block_1 = TextBlock(
-        text="this is a prompt",
+        text="this is a prompt that should be truncated",
         name="child block 1",
         truncate="right",
         tokenizer=tokenizer,
+        # max_tokens = 5
     )
     child_block_2 = TextBlock(
         text="this is a sample prompt",
@@ -155,10 +156,13 @@ def test_block_truncate_never_with_parent():
         tokenizer=tokenizer,
     )
     parent = Block(
-        name="parent block", children=[child_block_1, child_block_2], max_tokens=5
+        name="parent block",
+        tokenizer=tokenizer,
+        children=[child_block_1, child_block_2],
+        max_tokens=5,
+        separator=" ",
     )
-    assert parent[1].text() == "this is a sample prompt"
-    assert parent[0].text() == ""
+    assert parent.text() == "this is a sample prompt"
 
 
 def test_truncate_left_ellipsis():
@@ -315,11 +319,11 @@ def test_sentence_boundary_parent(truncate, expected):
         truncate="right",
         tokenizer=tokenizer,
         boundary="sentence",
-        separator="\n",
+        separator=" ",
     )
     block += "This is the first sentence."
     block += "This is the second sentence."
-    assert block.text() == "This is the first sentence."
+    assert block.text() == "This is the first sentence. "
 
 
 def test_newline_boundary_parent():
@@ -337,4 +341,4 @@ def test_newline_boundary_parent():
         boundary="line",
         separator="\n",
     )
-    assert parent.text() == "This is the first line."
+    assert parent.text() == "This is the first line.\n"

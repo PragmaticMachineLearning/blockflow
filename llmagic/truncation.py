@@ -91,6 +91,7 @@ def truncate(
                     raise TruncationError(
                         f"Cannot truncate to {max_tokens} tokens when truncate is 'never'."
                     )
+                    
                 
             case _:
                 # No truncation
