@@ -160,9 +160,26 @@ def test_block_truncate_never_with_parent():
         tokenizer=tokenizer,
         children=[child_block_1, child_block_2],
         max_tokens=5,
-        separator=" ",
     )
     assert parent.text() == "this is a sample prompt"
+
+
+def test_child_parent_truncation_heirachy():
+    child_block = TextBlock(
+        text="a b c d e f g h i j k l m n o p",
+        name="child block",
+        truncate="right",
+        max_tokens=10,
+    )
+    parent = Block(
+        name="parent block",
+        tokenizer=tokenizer,
+        truncate="left",
+        children=[child_block],
+        max_tokens=5,
+    )
+
+    assert parent.text() == " f g h i j"
 
 
 def test_truncate_left_ellipsis():

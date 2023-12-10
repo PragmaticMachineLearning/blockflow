@@ -79,7 +79,6 @@ class Block(AbstractBlock):
         # If text is provided, create a TextBlock from it and prepend it to the children
         self._prepend_text_block(text)
 
-
     def _initialize_basic_properties(
         self,
         children,
@@ -184,7 +183,7 @@ class Block(AbstractBlock):
 
     def full_tokens(self) -> Encoding:
         self._ensure_tokenizer_set()
-    
+
         joined_tokens: list[Encoding] = []
         for _, child in enumerate(self.children):
             joined_tokens.append(child.full_tokens())
@@ -194,23 +193,17 @@ class Block(AbstractBlock):
         self._ensure_tokenizer_set()
         return self._tokenizer.decode(self.full_tokens().ids)
 
-    def tokens(
-        self,
-        max_tokens: int | None = None,
-        truncation_strategy: str | None = None,
-        boundary: str | None = None,
-    ) -> Encoding:
-        self._ensure_tokenizer_set()
+    def tokens(self) -> Encoding:
         
-        if max_tokens is None:
-            max_tokens = self.max_tokens
-        if truncation_strategy is None:
-            truncation_strategy = self.truncation_strategy
-        if boundary is None:
-            boundary = self.boundary
-            
+        # load tokenizer
+        self._ensure_tokenizer_set()
+
         # validate children with truncate == "never" max_tokens < self.max_token
-        self._validate_children_max_tokens(max_tokens=max_tokens, truncation_strategy=truncation_strategy)
+
+        self._validate_children_max_tokens(
+            max_tokens=self.max_tokens, truncation_strategy=self.truncation_strategy
+        )
+        
         encodings = []
         tokens_seen = 0
 
@@ -226,55 +219,49 @@ class Block(AbstractBlock):
         self.children.sort(key=lambda x: x.priority_order_idx)
 
         # process children according to their priority
+
         for child in self.children:
             child_tokens = child.tokens().ids
 
             if (
-                max_tokens is None
+                self.max_tokens is None
                 or child.truncation_strategy == "never"
-                or (tokens_seen + len(child_tokens) < max_tokens)
+                or (tokens_seen + len(child_tokens) < self.max_tokens)
             ):
-                print("USING THE NEVER BLOCK")
-
                 # We can add this child and have tokens left over
                 encodings.append(child.tokens())
                 tokens_seen += len(child_tokens)
-                print("max tokens", max_tokens)
-                print("child name", child.name)
-                print("tokens_seen", tokens_seen)
             else:
                 # We exceed the max tokens amount
-                print("USING THE OTHER BLOCK")
-                number_allowed = max(max_tokens - tokens_seen, 0)
-                print("number allowed:", number_allowed)
-                print("max tokens", max_tokens)
-                print("child name", child.name)
-                encodings.append(
-                    child.tokens(
-                        max_tokens=number_allowed,
-                        truncation_strategy=truncation_strategy,
-                        boundary=boundary,
-                    )
+                number_allowed = max(self.max_tokens - tokens_seen, 0)
+
+                prelim = child.tokens()
+                new_boundary_points = find_boundary_points(
+                    prelim,
+                    tokenizer=self._tokenizer,
+                    boundary=self.boundary,
+                    truncate=self.truncation_strategy,
                 )
 
-                tokens_seen += number_allowed
+                truncated_child = truncate(
+                    prelim,
+                    tokenizer=self._tokenizer,
+                    max_tokens=number_allowed,
+                    truncation_strategy=self.truncation_strategy,
+                    boundary_points=new_boundary_points,
+                    ellipsis=self.ellipsis,
+                )["tokens"]
+                encodings.append(truncated_child)
+                tokens_seen += len(truncated_child)
 
         # sort children back to their original reading order
         sorted_encodings = sorted(
             zip(self.children, encodings), key=lambda x: x[0].reading_order_idx
         )
 
-        final_encodings = Encoding.merge([text for (_, text) in sorted_encodings])
+        final_encodings = Encoding.merge([enc for (_, enc) in sorted_encodings])
 
         return final_encodings
-        # return truncate(
-        #     joined,
-        #     max_tokens=self.max_tokens,
-        #     truncation_strategy=self.truncation_strategy,
-        #     ellipsis=self.ellipsis,
-        #     tokenizer=self._tokenizer,
-        #     boundary_points=self.boundary_points(),
-        # )["tokens"]
 
     def rich_text(
         self,
@@ -458,12 +445,11 @@ class TextBlock(AbstractBlock):
         self.priority_order_idx = priority_order_idx
 
     def boundary_points(self, boundary, truncation_strategy):
-        
         if boundary is None:
             boundary = self.boundary
         if truncation_strategy is None:
             truncation_strategy = self.truncation_strategy
-            
+
         return find_boundary_points(
             encoding=self.full_tokens(),
             tokenizer=self._tokenizer,
