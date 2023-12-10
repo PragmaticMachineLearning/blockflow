@@ -163,23 +163,35 @@ def test_block_truncate_never_with_parent():
     )
     assert parent.text() == "this is a sample prompt"
 
-
-def test_child_parent_truncation_heirachy():
+@pytest.mark.parametrize(
+    'text, name, max_tokens, truncate, expected',
+    [
+      ( "a b c d e f g h i j k l m n o p", "child block", 10, "right", "a b c d e f g h i j"),
+      ( "a b c d e f g h i j", "parent block", 5, "left", " f g h i j"), 
+      ( "a b c d e f g h i j k l m n o p", "child block", 5, "right", "a b c d e"),
+      ( "a b c d e", "parent block", 1000, "left", "a b c d e"), 
+      
+      
+      
+    ]
+)
+def test_child_parent_truncation_heirachy(text, name, truncate, max_tokens, expected):
     child_block = TextBlock(
-        text="a b c d e f g h i j k l m n o p",
-        name="child block",
-        truncate="right",
-        max_tokens=10,
+        text=text,
+        name=name,
+        truncate=truncate,
+        max_tokens=max_tokens,
     )
     parent = Block(
-        name="parent block",
+        name=name,
         tokenizer=tokenizer,
-        truncate="left",
+        truncate=truncate,
         children=[child_block],
-        max_tokens=5,
+        max_tokens=max_tokens,
     )
 
-    assert parent.text() == " f g h i j"
+    assert parent.text() == expected
+    
 
 
 def test_truncate_left_ellipsis():
