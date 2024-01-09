@@ -6,10 +6,13 @@ from rich.panel import Panel
 from rich.style import Style
 from rich.text import Text
 from tokenizers import Encoding
-
 from llmagic.boundary import find_boundary_points
 from llmagic.dtypes import Boundary, TruncationStrategy
 from llmagic.truncation import truncate
+from llmagic.tokenizer import create_tokenizer
+import llmagic.config as config
+import warnings
+
 
 
 class AbstractBlock(ABC):
@@ -42,6 +45,8 @@ class AbstractBlock(ABC):
     @abstractmethod
     def set_tokenizer(self, tokenizer):
         pass
+    
+   
 
 
 class Block(AbstractBlock):
@@ -163,15 +168,19 @@ class Block(AbstractBlock):
                 f"({total_tokens_count}) exceeds the parent's max_tokens ({self.max_tokens})."
             )
 
-    def boundary_points(self):
-        return find_boundary_points(
-            encoding=self.full_tokens(),
-            tokenizer=self._tokenizer,
-            boundary=self.boundary,
-            truncate=self.truncation_strategy,
-        )
+    # def boundary_points(self):
+    #     return find_boundary_points(
+    #         encoding=self.full_tokens(),
+    #         tokenizer=self._tokenizer,
+    #         boundary=self.boundary,
+    #         truncate=self.truncation_strategy,
+    #     )
 
     def _ensure_tokenizer_set(self):
+        if isinstance(self._tokenizer, str):
+            raise ValueError(
+                "It looks like you are trying to create a tokenizer using a string, please provide a tokenizer object instead."
+            )
         if self._tokenizer is None:
             raise ValueError("Tokenizer must be explicitly provided")
         self.set_tokenizer(self._tokenizer)
@@ -194,7 +203,6 @@ class Block(AbstractBlock):
         return self._tokenizer.decode(self.full_tokens().ids)
 
     def tokens(self) -> Encoding:
-        
         # load tokenizer
         self._ensure_tokenizer_set()
 
@@ -203,7 +211,7 @@ class Block(AbstractBlock):
         self._validate_children_max_tokens(
             max_tokens=self.max_tokens, truncation_strategy=self.truncation_strategy
         )
-        
+
         encodings = []
         tokens_seen = 0
 
@@ -251,6 +259,7 @@ class Block(AbstractBlock):
                     boundary_points=new_boundary_points,
                     ellipsis=self.ellipsis,
                 )["tokens"]
+               
                 encodings.append(truncated_child)
                 tokens_seen += len(truncated_child)
 
@@ -259,7 +268,9 @@ class Block(AbstractBlock):
             zip(self.children, encodings), key=lambda x: x[0].reading_order_idx
         )
 
-        final_encodings = Encoding.merge([enc for (_, enc) in sorted_encodings])
+        final_encodings = Encoding.merge(
+            [encoding for (_, encoding) in sorted_encodings]
+        )
 
         return final_encodings
 
@@ -329,6 +340,7 @@ class Block(AbstractBlock):
 
     def text(self) -> str:
         self._ensure_tokenizer_set()
+        
         return self._tokenizer.decode(self.tokens().ids)
 
     def __repr__(self):
@@ -443,13 +455,16 @@ class TextBlock(AbstractBlock):
         self.boundary = boundary
         self.reading_order_idx = reading_order_idx
         self.priority_order_idx = priority_order_idx
+        
 
+    
     def boundary_points(self, boundary, truncation_strategy):
         if boundary is None:
             boundary = self.boundary
         if truncation_strategy is None:
             truncation_strategy = self.truncation_strategy
-
+        
+        config.set_boundary_name(boundary)
         return find_boundary_points(
             encoding=self.full_tokens(),
             tokenizer=self._tokenizer,
