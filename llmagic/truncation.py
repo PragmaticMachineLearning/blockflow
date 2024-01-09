@@ -5,6 +5,16 @@ from tokenizers import Encoding
 
 from llmagic.dtypes import TruncationStrategy
 from llmagic.errors import TruncationError
+import warnings
+
+
+class GetBoundaryName:
+    @property
+    def get_boundary_name(self):
+        import llmagic.config as config
+
+        return config.get_boundary_name()
+
 
 def truncate_encoding(self, *args, **kwargs):
     copied = copy.deepcopy(self)
@@ -31,11 +41,16 @@ def add_ellipsis_token(tokens, ellipsis_token, direction="right"):
 
 
 def process_boundary_points(
-    boundary_points: list[int], max_tokens: int, token_size: int = None, direction="right"
+    boundary_points: list[int],
+    max_tokens: int,
+    token_size: int = None,
+    direction="right",
 ) -> int:
     if boundary_points is not None:
         if direction == "left":
-            while (token_size - max_tokens - 1) not in boundary_points and max_tokens > 0:
+            while (
+                token_size - max_tokens - 1
+            ) not in boundary_points and max_tokens > 0:
                 max_tokens -= 1
         elif direction == "right":
             while max_tokens not in boundary_points and max_tokens > 0:
@@ -85,17 +100,24 @@ def truncate(
                     tokens = add_ellipsis_token(
                         tokens, ellipsis_token=ellipsis_tokens, direction="left"
                     )
-                    
+
             case "never":
                 if token_size > max_tokens:
                     raise TruncationError(
                         f"Cannot truncate to {max_tokens} tokens when truncate is 'never'."
                     )
-                    
-                
+
             case _:
                 # No truncation
                 pass
+
+        if len(tokens.ids) == 0:
+            gbn = GetBoundaryNames()
+            boundary_name = gbn.get_boundary_name
+            warnings.warn(
+                f"Truncated Text is empty, consider using a different boundary setting other than '{boundary_name}'"
+            )
+
     return {
         "remainder_left": remainder_left,
         "remainder_right": remainder_right,
