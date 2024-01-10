@@ -8,14 +8,6 @@ from llmagic.errors import TruncationError
 import warnings
 
 
-class GetBoundaryName:
-    @property
-    def get_boundary_name(self):
-        import llmagic.config as config
-
-        return config.get_boundary_name()
-
-
 def truncate_encoding(self, *args, **kwargs):
     copied = copy.deepcopy(self)
     copied.truncate(*args, **kwargs)
@@ -51,6 +43,7 @@ def process_boundary_points(
             while (
                 token_size - max_tokens - 1
             ) not in boundary_points and max_tokens > 0:
+                # -------------x-
                 max_tokens -= 1
         elif direction == "right":
             while max_tokens not in boundary_points and max_tokens > 0:
@@ -66,6 +59,7 @@ def truncate(
     tokenizer: Callable,
     ellipsis: bool = False,
     boundary_points: list[int] | None = None,
+    boundary_name: str = None,
 ) -> dict[str, Encoding]:
     token_size = len(tokens.ids)
     remainder_right = Encoding()
@@ -112,10 +106,8 @@ def truncate(
                 pass
 
         if len(tokens.ids) == 0:
-            gbn = GetBoundaryNames()
-            boundary_name = gbn.get_boundary_name
             warnings.warn(
-                f"Truncated Text is empty, consider using a different boundary setting other than '{boundary_name}'"
+                f"Truncated Text is empty. Consider using a different boundary setting other than '{boundary_name}'"
             )
 
     return {

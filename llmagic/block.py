@@ -10,8 +10,6 @@ from llmagic.boundary import find_boundary_points
 from llmagic.dtypes import Boundary, TruncationStrategy
 from llmagic.truncation import truncate
 from llmagic.tokenizer import create_tokenizer
-import llmagic.config as config
-import warnings
 
 
 
@@ -258,6 +256,7 @@ class Block(AbstractBlock):
                     truncation_strategy=self.truncation_strategy,
                     boundary_points=new_boundary_points,
                     ellipsis=self.ellipsis,
+                    boundary_name=self.boundary_name,
                 )["tokens"]
                
                 encodings.append(truncated_child)
@@ -464,7 +463,6 @@ class TextBlock(AbstractBlock):
         if truncation_strategy is None:
             truncation_strategy = self.truncation_strategy
         
-        config.set_boundary_name(boundary)
         return find_boundary_points(
             encoding=self.full_tokens(),
             tokenizer=self._tokenizer,
@@ -479,6 +477,8 @@ class TextBlock(AbstractBlock):
         self,
         max_tokens: int | None = None,
         truncation_strategy: TruncationStrategy | None = None,
+        boundary: str|None = None,
+        boundary_points: list[int]| None = None,
     ) -> Panel:
         if max_tokens is None:
             max_tokens = self.max_tokens
@@ -496,12 +496,18 @@ class TextBlock(AbstractBlock):
                 max_tokens=self.max_tokens,
                 truncation_strategy=self.truncation_strategy,
                 tokenizer=self._tokenizer,
+                boundary_name=self.boundary,
+                # boundary_points=self.boundary_points(self.boundary, self.truncation_strategy)
+                
+                
             )
             parent_truncated_tokens: Encoding = truncate(
                 child_truncated_tokens["tokens"],
                 max_tokens=max_tokens,
                 truncation_strategy=truncation_strategy,
                 tokenizer=self._tokenizer,
+                boundary_name=boundary,
+                # boundary_points= boundary_points
             )
 
             left_text = self._tokenizer.decode(
@@ -569,6 +575,7 @@ class TextBlock(AbstractBlock):
                 truncation_strategy=truncation_strategy,
                 ellipsis=self.ellipsis,
                 tokenizer=self._tokenizer,
+                boundary_name=self.boundary,
                 boundary_points=self.boundary_points(
                     boundary=boundary, truncation_strategy=truncation_strategy
                 ),
