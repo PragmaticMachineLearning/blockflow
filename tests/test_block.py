@@ -1,9 +1,10 @@
 import pytest
+from rich import print
 from rich.panel import Panel
 
 from llmagic.block import Block, TextBlock
-from llmagic.tokenizer import create_tokenizer
 from llmagic.errors import TruncationError
+from llmagic.tokenizer import create_tokenizer
 
 tokenizer = create_tokenizer()
 
@@ -161,19 +162,26 @@ def test_block_truncate_never_with_parent():
         children=[child_block_1, child_block_2],
         max_tokens=5,
     )
+    child_texts_before = [child_block.text() for child_block in parent.children]
     assert parent.text() == "this is a sample prompt"
+    child_texts_after = [child_block.text() for child_block in parent.children]
+    assert child_texts_before == child_texts_after
+
 
 @pytest.mark.parametrize(
-    'text, name, max_tokens, truncate, expected',
+    "text, name, max_tokens, truncate, expected",
     [
-      ( "a b c d e f g h i j k l m n o p", "child block", 10, "right", "a b c d e f g h i j"),
-      ( "a b c d e f g h i j", "parent block", 5, "left", " f g h i j"), 
-      ( "a b c d e f g h i j k l m n o p", "child block", 5, "right", "a b c d e"),
-      ( "a b c d e", "parent block", 1000, "left", "a b c d e"), 
-      
-      
-      
-    ]
+        (
+            "a b c d e f g h i j k l m n o p",
+            "child block",
+            10,
+            "right",
+            "a b c d e f g h i j",
+        ),
+        ("a b c d e f g h i j", "parent block", 5, "left", " f g h i j"),
+        ("a b c d e f g h i j k l m n o p", "child block", 5, "right", "a b c d e"),
+        ("a b c d e", "parent block", 1000, "left", "a b c d e"),
+    ],
 )
 def test_child_parent_truncation_heirachy(text, name, truncate, max_tokens, expected):
     child_block = TextBlock(
@@ -191,7 +199,6 @@ def test_child_parent_truncation_heirachy(text, name, truncate, max_tokens, expe
     )
 
     assert parent.text() == expected
-    
 
 
 def test_truncate_left_ellipsis():
