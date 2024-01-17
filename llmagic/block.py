@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import Callable, Literal
 
 from rich.console import Group
@@ -43,6 +44,14 @@ class AbstractBlock(ABC):
     @abstractmethod
     def set_tokenizer(self, tokenizer):
         pass
+
+
+@dataclass
+class NodeData:
+    tokens: Encoding
+    remainder_left: Encoding
+    remainder_right: Encoding
+    name: str
 
 
 class Block(AbstractBlock):
@@ -215,7 +224,58 @@ class Block(AbstractBlock):
     def sort_by_reading_order(self, blocks: list["Block | TextBlock"]):
         return sorted(blocks, key=lambda x: x.reading_order_idx)
 
-    def truncate(self) -> list[dict[str, Encoding]]:
+    def truncate_node(self, node: list | NodeData, tokens_seen: int = 0) -> dict:
+        number_allowed = max(self.max_tokens - tokens_seen, 0)
+        if isinstance(node, dict):
+            revised_node = {}
+            new_boundary_points = find_boundary_points(
+                node["tokens"],
+                tokenizer=self._tokenizer,
+                boundary=self.boundary,
+                truncate=self.truncation_strategy,
+            )
+
+            parent_truncated_tokens = truncate(
+                node["tokens"],
+                tokenizer=self._tokenizer,
+                max_tokens=number_allowed,
+                truncation_strategy=self.truncation_strategy,
+                boundary_points=new_boundary_points,
+                ellipsis=self.ellipsis,
+                boundary_name=self.boundary,
+            )
+            revised_node["remainder_left"] = Encoding.merge(
+                [
+                    node["remainder_left"],
+                    parent_truncated_tokens["remainder_left"],
+                ]
+            )
+            revised_node["remainder_right"] = Encoding.merge(
+                [
+                    parent_truncated_tokens["remainder_right"],
+                    node["remainder_right"],
+                ]
+            )
+            revised_node["tokens"] = parent_truncated_tokens["tokens"]
+            tokens_seen += len(revised_node["tokens"].ids)
+            return {
+                "revised_node": revised_node,
+                "tokens_seen": tokens_seen,
+            }
+        elif isinstance(node, list):
+            revised_node = []
+            for child_node in node:
+                revised_child_node = self.truncate_node(child_node, tokens_seen)
+                revised_node.append(revised_child_node["revised_node"])
+                tokens_seen = revised_child_node["tokens_seen"]
+            return {
+                "revised_node": revised_node,
+                "tokens_seen": tokens_seen,
+            }
+        else:
+            raise TypeError(f"Unexpected type {type(node)} in tree")
+
+    def truncate(self) -> list[NodeData | list]:
         # load tokenizer
         self._ensure_tokenizer_set()
 
@@ -226,11 +286,16 @@ class Block(AbstractBlock):
 
         tokens_seen = 0
 
+        result: list[NodeData | list] = []
         self.children = self.sort_by_priority(self.children)
 
         for child in self.children:
             child_tokens = child.tokens().ids
-            child_result = {"remainder_left": Encoding(), "remainder_right": Encoding()}
+            child_result = {
+                "remainder_left": Encoding(),
+                "remainder_right": Encoding(),
+                "name": child.name or "",
+            }
             if (
                 self.max_tokens is None
                 or child.truncation_strategy == "never"
@@ -239,63 +304,31 @@ class Block(AbstractBlock):
                 # We can add this child and have tokens left over
                 child_result["tokens"] = child.tokens()
                 tokens_seen += len(child_tokens)
+                result.append(child_result)
             else:
-                # We exceed the max tokens amount
-                number_allowed = max(self.max_tokens - tokens_seen, 0)
+                child_tree: list[NodeData | list] = child.truncate()
+                revised_node = self.truncate_node(child_tree, tokens_seen)
+                tokens_seen = revised_node["tokens_seen"]
+                result.append(revised_node["revised_node"])
 
-                # First allow the child to apply any truncation it is required to
-                child_truncated_tokens = child.truncate()
-
-                TODO: we have arrived at a tough spot.  child_truncated_tokens is a list
-                # Typically we would want to further truncate the tokens using the parent
-                # settings.  However, this relies on having a single Encoding() object to work off of.
-                # In this case -- we have a list of [{'remainder_left': Encoding, 'remainder_right': Encoding, 'tokens': Encoding}, ...]
-                # We can't just merge this into a single Encoding because that will destroy reading order.
-                # We need to instead calculate what would happen if we did merge into a single Encoding, but then apply that across
-                # the entire list of objects.
-                #
-                # Merge list to encoding (but keep track of where each token came from) --> truncate --> reapply to full list
-                new_boundary_points = find_boundary_points(
-                    child_truncated_tokens["tokens"],
-                    tokenizer=self._tokenizer,
-                    boundary=self.boundary,
-                    truncate=self.truncation_strategy,
-                )
-
-                parent_truncated_tokens = truncate(
-                    child_truncated_tokens["tokens"],
-                    tokenizer=self._tokenizer,
-                    max_tokens=number_allowed,
-                    truncation_strategy=self.truncation_strategy,
-                    boundary_points=new_boundary_points,
-                    ellipsis=self.ellipsis,
-                    boundary_name=self.boundary,
-                )
-                child_result["remainder_left"] = Encoding.merge(
-                    [
-                        child_truncated_tokens["remainder_left"],
-                        parent_truncated_tokens["remainder_left"],
-                    ]
-                )
-                child_result["remainder_right"] = Encoding.merge(
-                    [
-                        parent_truncated_tokens["remainder_right"],
-                        child_truncated_tokens["remainder_right"],
-                    ]
-                )
-                child_result["tokens"] = parent_truncated_tokens["tokens"]
-
-        sorted_encodings = sorted(
-            zip(self.children, encodings), key=lambda x: x[0].reading_order_idx
+        sorted_result = sorted(
+            zip(self.children, result), key=lambda pair: pair[0].reading_order_idx
         )
 
         self.children = self.sort_by_reading_order(self.children)
 
-        final_encodings = Encoding.merge(
-            [encoding for (_, encoding) in sorted_encodings]
-        )
+        return [child_tree for (_, child_tree) in sorted_result]
 
-        return final_encodings
+    def untruncated_tokens(self, tree: list[dict[str, Encoding] | list]) -> Encoding:
+        encodings: list[Encoding] = []
+        for node in tree:
+            if isinstance(node, dict):
+                encodings.append(node["tokens"])
+            elif isinstance(node, list):
+                encodings.append(self.untruncated_tokens(node))
+            else:
+                raise TypeError(f"Unexpected type {type(node)} in tree")
+        return Encoding.merge(encodings)
 
     def tokens(self) -> Encoding:
         # load tokenizer
@@ -306,61 +339,34 @@ class Block(AbstractBlock):
         self._validate_children_max_tokens(
             max_tokens=self.max_tokens, truncation_strategy=self.truncation_strategy
         )
+        return self.untruncated_tokens(self.truncate())
 
-        encodings = []
-        tokens_seen = 0
+    def format_node(self, node: list | NodeData) -> Panel:
+        if isinstance(node, dict):
+            left_text = self._tokenizer.decode(node["remainder_left"].ids)
+            inner_text = self._tokenizer.decode(node["tokens"].ids)
+            right_text = self._tokenizer.decode(node["remainder_right"].ids)
+            display_text = Text()
+            display_text.append(left_text, style="bold magenta")
+            display_text.append(inner_text, style="bold blue")
+            display_text.append(right_text, style="bold magenta")
 
-        self.children = self.sort_by_priority(self.children)
-
-        for child in self.children:
-            child_tokens = child.tokens().ids
-
-            if (
-                self.max_tokens is None
-                or child.truncation_strategy == "never"
-                or (tokens_seen + len(child_tokens) < self.max_tokens)
-            ):
-                # We can add this child and have tokens left over
-                encodings.append(child.tokens())
-                tokens_seen += len(child_tokens)
-            else:
-                # We exceed the max tokens amount
-                number_allowed = max(self.max_tokens - tokens_seen, 0)
-
-                # First allow the child to apply any truncation it is required to
-                prelim = child.tokens()
-
-                new_boundary_points = find_boundary_points(
-                    prelim,
-                    tokenizer=self._tokenizer,
-                    boundary=self.boundary,
-                    truncate=self.truncation_strategy,
-                )
-
-                truncated_child = truncate(
-                    prelim,
-                    tokenizer=self._tokenizer,
-                    max_tokens=number_allowed,
-                    truncation_strategy=self.truncation_strategy,
-                    boundary_points=new_boundary_points,
-                    ellipsis=self.ellipsis,
-                    boundary_name=self.boundary,
-                )["tokens"]
-
-                encodings.append(truncated_child)
-                tokens_seen += len(truncated_child.tokens)
-
-        sorted_encodings = sorted(
-            zip(self.children, encodings), key=lambda x: x[0].reading_order_idx
-        )
-
-        self.children = self.sort_by_reading_order(self.children)
-
-        final_encodings = Encoding.merge(
-            [encoding for (_, encoding) in sorted_encodings]
-        )
-
-        return final_encodings
+            return Panel(
+                display_text,
+                title=node["name"] or "",
+                title_align="left",
+                border_style="bold blue",
+            )
+        elif isinstance(node, list):
+            return Panel(
+                Group(*[self.format_node(child_node) for child_node in node]),
+                # TODO: need to wire name through properly here
+                title="",
+                title_align="left",
+                border_style="bold blue",
+            )
+        else:
+            raise TypeError(f"Unexpected type {type(node)} in tree")
 
     def rich_text(
         self,
@@ -373,100 +379,8 @@ class Block(AbstractBlock):
         if truncation_strategy is None:
             truncation_strategy = self.truncation_strategy
 
-        rich_texts = []
-        tokens_seen = 0
-
-        self.children = self.sort_by_priority(self.children)
-
-        # process children according to their priority
-        for child in self.children:
-            child_tokens = child.tokens().ids
-
-            if (
-                max_tokens is None
-                or child.truncation_strategy == "never"
-                or (tokens_seen + len(child_tokens) < max_tokens)
-            ):
-                # We can add this child and have tokens left over
-                rich_texts.append(child.rich_text())
-                tokens_seen += len(child_tokens)
-
-            else:
-                # We exceed the max tokens amount
-                number_allowed = max(max_tokens - tokens_seen, 0)
-
-                # First allow the child to apply any truncation it is required to
-                child_truncated_tokens = child.truncate()
-
-                TODO: update this once we fix the truncate function -- this should be super easy
-                # to write once we have truncate() working properly with a list return type
-                # because the remainder_left and the remainder_right objects are exactly what we need
-                # for formatting the rich text
-                new_boundary_points = find_boundary_points(
-                    child_truncated_tokens["tokens"],
-                    tokenizer=self._tokenizer,
-                    boundary=self.boundary,
-                    truncate=self.truncation_strategy,
-                )
-
-                parent_truncated_tokens = truncate(
-                    child_truncated_tokens["tokens"],
-                    tokenizer=self._tokenizer,
-                    max_tokens=number_allowed,
-                    truncation_strategy=self.truncation_strategy,
-                    boundary_points=new_boundary_points,
-                    ellipsis=self.ellipsis,
-                    boundary_name=self.boundary,
-                )
-
-                left_text = self._tokenizer.decode(
-                    Encoding.merge(
-                        [
-                            child_truncated_tokens["remainder_left"],
-                            parent_truncated_tokens["remainder_left"],
-                        ]
-                    ).ids
-                )
-                right_text = self._tokenizer.decode(
-                    Encoding.merge(
-                        [
-                            parent_truncated_tokens["remainder_right"],
-                            child_truncated_tokens["remainder_right"],
-                        ]
-                    ).ids
-                )
-                inner_text = self._tokenizer.decode(
-                    parent_truncated_tokens["tokens"].ids
-                )
-
-                display_text = Text()
-                display_text.append(left_text, style="bold magenta")
-                display_text.append(inner_text, style="bold blue")
-                display_text.append(right_text, style="bold magenta")
-
-                panel = Panel(
-                    display_text,
-                    title=child.name or "",
-                    title_align="left",
-                    border_style="bold green",
-                )
-                rich_texts.append(panel)
-
-                tokens_seen += number_allowed
-
-        # sort children back to their original reading order
-        sorted_rich_texts = sorted(
-            zip(self.children, rich_texts), key=lambda x: x[0].reading_order_idx
-        )
-
-        final_rich_texts = [text for (_, text) in sorted_rich_texts]
-
-        return Panel(
-            Group(*final_rich_texts),
-            title=self.name or "",
-            title_align="left",
-            border_style="bold blue",
-        )
+        tree = self.truncate()
+        return self.format_node(tree)
 
     def text(self) -> str:
         self._ensure_tokenizer_set()
@@ -616,50 +530,15 @@ class TextBlock(AbstractBlock):
 
         display_text = Text()
 
-        if truncation_strategy == "never":
-            display_text = Text(self.full_text(), style="bold blue")
-
-        else:
-            child_truncated_tokens = truncate(
-                self.full_tokens(),
-                max_tokens=self.max_tokens,
-                truncation_strategy=self.truncation_strategy,
-                tokenizer=self._tokenizer,
-                boundary_name=self.boundary,
-                boundary_points=self.boundary_points(
-                    self.boundary, self.truncation_strategy
-                ),
-            )
-            parent_truncated_tokens = truncate(
-                child_truncated_tokens["tokens"],
-                max_tokens=max_tokens,
-                truncation_strategy=truncation_strategy,
-                tokenizer=self._tokenizer,
-                boundary_name=self.boundary,
-                boundary_points=boundary_points,
-            )
-
-            left_text = self._tokenizer.decode(
-                Encoding.merge(
-                    [
-                        child_truncated_tokens["remainder_left"],
-                        parent_truncated_tokens["remainder_left"],
-                    ]
-                ).ids
-            )
-            right_text = self._tokenizer.decode(
-                Encoding.merge(
-                    [
-                        parent_truncated_tokens["remainder_right"],
-                        child_truncated_tokens["remainder_right"],
-                    ]
-                ).ids
-            )
-            inner_text = self._tokenizer.decode(parent_truncated_tokens["tokens"].ids)
-
-            display_text.append(left_text, style="bold magenta")
-            display_text.append(inner_text, style="bold blue")
-            display_text.append(right_text, style="bold magenta")
+        tree = self.truncate()
+        # guaranteed to only have 1 element
+        node_data = tree[0]
+        left_text = self._tokenizer.decode(node_data["remainder_left"].ids)
+        inner_text = self._tokenizer.decode(node_data["tokens"].ids)
+        right_text = self._tokenizer.decode(node_data["remainder_right"].ids)
+        display_text.append(left_text, style="bold magenta")
+        display_text.append(inner_text, style="bold blue")
+        display_text.append(right_text, style="bold magenta")
 
         return Panel(
             display_text,
@@ -686,7 +565,7 @@ class TextBlock(AbstractBlock):
         max_tokens: int | None = None,
         truncation_strategy: TruncationStrategy | None = None,
         boundary: Boundary | None = None,
-    ) -> list[dict[str, Encoding]]:
+    ) -> list[NodeData]:
         if max_tokens is None:
             max_tokens = self.max_tokens
         if truncation_strategy is None:
@@ -712,6 +591,8 @@ class TextBlock(AbstractBlock):
                     boundary=boundary, truncation_strategy=truncation_strategy
                 ),
             )
+
+        truncated["name"] = self.name or ""
         return [truncated]
 
     def tokens(

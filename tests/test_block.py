@@ -233,6 +233,9 @@ def test_exceed_max_tokens():
     )
     rich_text = block.rich_text(max_tokens=10)
     final_child = rich_text.renderable.renderables[-1]
+    from rich import print
+
+    print(rich_text)
     assert len(rich_text.renderable.renderables) == 3
     assert (
         final_child.renderable.renderables[0].renderable.spans[0].style
