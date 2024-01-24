@@ -33,12 +33,28 @@ answer = Block("Answer", max_tokens=512, name="answer")
 # DSPY like API for running LLM inference
 answer = compile("context,question -> answer") # LLM is automatically run here to populate answer
 answer = compile("context,history,question -> answer") # LLM is automatically run here to populate answer
+
+# Avoid Redundancy: this might be similar to prompt.summarize(), but before summarizing, we can add a step that
+# handles redundancy by removing repeated information in the provided prompt. Question: How do we preserve the prompt's
+contextual information after all this processing?
+
+# Chunking: Considering how large datasets are usually broken down to be efficiently processed in RAM, complex prompts can
+# also be broken down into chunks before being passed to the language model
+
+# Maybe we can use a context manager to handle memory management?
+with LlmagicMemory("A long wikipedia article about squirrels...", max_tokens=8192) as prompt:
+    compressed_memory = prompt.summarize(max_tokens=4096)
+    assert prompt.free_memory() == 4096
+    prompt += TextBlock("Question: What is the average lifespan of a black squirrel?")
+
+
+
 ```
 
-
-
 # Step 2: Automatic memory management
+
 # Garbage collection in python
+
 ```python
 a = 100
 # Snapshot: {'a': 100}
@@ -52,4 +68,5 @@ result = fn()
 ```
 
 # Garbage collection when prompting LLMs
+
 What's the equivalent?
