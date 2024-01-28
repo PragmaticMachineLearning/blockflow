@@ -36,10 +36,19 @@ answer = compile("context,history,question -> answer") # LLM is automatically ru
 
 # Avoid Redundancy: this might be similar to prompt.summarize(), but before summarizing, we can add a step that
 # handles redundancy by removing repeated information in the provided prompt. Question: How do we preserve the prompt's
-contextual information after all this processing?
+contextual information after all this processing? -- this should be baked into summarize()
 
 # Chunking: Considering how large datasets are usually broken down to be efficiently processed in RAM, complex prompts can
-# also be broken down into chunks before being passed to the language model
+# also be broken down into chunks before being passed to the language model -- Consider memory paging as an analogy to chunking
+
+# Consider a virtual memory analogy: we can have a virtual memory that has a larger context size compared to the context size of the LLM to be prompted
+# for now, we are not sure this will work because thinking about it, the llm might need to be one finetuned for a specific domain. Example is one that 
+# was finetuned using COT -- still interesting to dig into this idea!
+
+# Look into how RUST handles memory, it does not use garbage collection. Figure out if it is beneficial in place of garbage collection.
+
+# Look up Reference counting, it is a way to use garbage collection.
+
 
 # Maybe we can use a context manager to handle memory management?
 with LlmagicMemory("A long wikipedia article about squirrels...", max_tokens=8192) as prompt:
