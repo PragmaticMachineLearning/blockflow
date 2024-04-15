@@ -1,4 +1,4 @@
-LLMagic
+blockflow
 -------
 
 ### What problem does this solve?
@@ -25,7 +25,7 @@ untouched by truncating the right hand side of the context.
 [  Context|     ][ Question     ][ Answer Prompt ]
 
 As another example: if you have 10 sections of context, you might want to choose between decreasing each sections size equally or
-opting to drop a section all together.  With LLMagic it's easy to experiment with different strategies to make sure
+opting to drop a section all together.  With blockflow it's easy to experiment with different strategies to make sure
 you get the behavior you want.
 
 ### Goals:
