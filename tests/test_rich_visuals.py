@@ -2,7 +2,7 @@ from rich import print
 from rich.layout import Layout
 from rich.panel import Panel
 
-from llmagic.block import Block, TextBlock
+from blockflow.block import Block, TextBlock
 
 grandparent_block = (
     Block(name="grandparent", max_tokens=50, truncate="right", ellipsis=True)

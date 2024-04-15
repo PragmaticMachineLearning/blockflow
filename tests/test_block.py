@@ -2,9 +2,9 @@ import pytest
 from rich import print
 from rich.panel import Panel
 
-from llmagic.block import Block, TextBlock
-from llmagic.errors import TruncationError
-from llmagic.tokenizer import create_tokenizer
+from blockflow.block import Block, TextBlock
+from blockflow.errors import TruncationError
+from blockflow.tokenizer import create_tokenizer
 
 tokenizer = create_tokenizer()
 

@@ -1,11 +1,11 @@
 version: '3.8'
 
 services:
-  llmagic:
+  blockflow:
     build:
       context: .
       dockerfile: Dockerfile
     volumes:
-      - .:/llmagic
+      - .:/blockflow
     stdin_open: true  # Keep container running
     tty: true         # Allocate a pseudo-TTY

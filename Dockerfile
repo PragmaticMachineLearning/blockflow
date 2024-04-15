@@ -2,7 +2,7 @@
 FROM python:3.10
 
 # Set the working directory
-WORKDIR /llmagic
+WORKDIR /blockflow
 
 # Install Poetry
 RUN pip install --no-cache-dir poetry

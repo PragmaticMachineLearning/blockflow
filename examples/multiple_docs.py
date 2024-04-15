@@ -2,8 +2,8 @@ import glob
 
 from rich import print
 
-from llmagic.block import Block, TextBlock
-from llmagic.tokenizer import create_tokenizer
+from blockflow.block import Block, TextBlock
+from blockflow.tokenizer import create_tokenizer
 
 text_files = glob.glob("data/*.txt")
 docs = []
