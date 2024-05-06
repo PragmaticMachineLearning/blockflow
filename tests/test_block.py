@@ -40,6 +40,7 @@ def test_rich_text_method():
     block = Block(text="this is a sample text", tokenizer=tokenizer)
     rich_panel = block.rich_text(max_tokens=10)
     rich_text = block.rich_text()
+    print(rich_text)
     assert isinstance(rich_panel, Panel)
     assert isinstance(rich_text, Panel)
 
@@ -148,13 +149,14 @@ def test_block_truncate_never_with_parent():
         name="child block 1",
         truncate="right",
         tokenizer=tokenizer,
-        # max_tokens = 5
+        max_tokens=20,
     )
     child_block_2 = TextBlock(
         text="this is a sample prompt",
         name="child block 2",
         truncate="never",
         tokenizer=tokenizer,
+        # max_tokens=20
     )
     parent = Block(
         name="parent block",
@@ -229,16 +231,20 @@ def test_exceed_max_tokens():
             Block(text="this is a second sample text"),
             Block(text="this is a third sample text"),
         ],
+        
         tokenizer=tokenizer,
     )
-    rich_text = block.rich_text(max_tokens=10)
+    rich_text = block.rich_text(max_tokens=5)
     final_child = rich_text.renderable.renderables[-1]
     from rich import print
 
     print(rich_text)
+    # import pdb
+    
+    # pdb.set_trace()
     assert len(rich_text.renderable.renderables) == 3
     assert (
-        final_child.renderable.renderables[0].renderable.spans[0].style
+        final_child.renderable.spans[0].style
         == "bold magenta"
     )
 

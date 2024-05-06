@@ -1,11 +1,12 @@
 from rich import print
 from rich.layout import Layout
 from rich.panel import Panel
+from blockflow.tokenizer import create_tokenizer
 
 from blockflow.block import Block, TextBlock
 
 grandparent_block = (
-    Block(name="grandparent", max_tokens=50, truncate="right", ellipsis=True)
+    Block(name="grandparent", max_tokens=50, truncate="right", ellipsis=False, tokenizer=create_tokenizer())
     + "this is a grandparent statement"
 )
 parent_block = Block(name="parent") + "this is a parent statement"
@@ -16,15 +17,21 @@ The rebels finally ousted Batista on 1 January 1959, replacing his government. 2
 The Cuban Revolution had powerful domestic and international repercussions. In particular, it transformed Cuba–United States relations, although efforts to improve diplomatic relations, such as the Cuban thaw, gained momentum during the 2010s.[10][11][12][13] In the immediate aftermath of the revolution, Castro's government began a program of nationalization, centralization of the press and political consolidation that transformed Cuba's economy and civil society.[14][15] The revolution also heralded an era of Cuban intervention in foreign conflicts in Africa, Latin America, Southeast Asia, and the Middle East.[16][17][18][19] Several rebellions occurred in the six years following 1959, mainly in the Escambray Mountains, which were suppressed by the revolutionary government.[20][21][22][23]""",
     max_tokens=100,
     ellipsis=True,
+    truncate="never",
 )
 child_b = TextBlock(
     name="child b",
     text="This is another block",
     max_tokens=2,
-    truncate="left",
+    truncate="never",
     ellipsis=True,
 )
-parent_block = parent_block + child_a + child_b
+# parent_block = parent_block + child_a + child_b
+for child in [child_a, child_b]:
+    parent_block += child
+
 grandparent_block += parent_block
-print(grandparent_block.text())
+# import ipdb; ipdb.set_trace()
+# print(grandparent_block.text())
 print(grandparent_block.rich_text())
+print(grandparent_block.tokens())
