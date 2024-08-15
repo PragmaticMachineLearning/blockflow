@@ -2,27 +2,99 @@
 
 # blockflow
 -------
-![blockflow](./assets/blockflow.png)
+<!-- ![blockflow](./assets/blockflow.png) -->
+
+<img src="./assets/blockflow.png" alt="blockflow" width="600" height="400">
 
 
-#### Overview
+Blockflow is a system designed to manage and structure prompts for large language models. The system's primary goal is to handle text inputs efficiently, ensuring they fit within token limits while maintaining logical content boundaries. This is crucial when working with large models where prompt length constraints are a significant factor.
 
-This library offers detailed control over the construction and modification of prompts, tailored to fit within the constraints of a language model's context size. It uses a method akin to HTML and CSS, where CSS controls overflow and sizing on a webpage. Similarly, this library allows users to define and adjust the size and content of different sections within a prompt to ensure optimal use of the available context size.
+### Key Features
 
-#### Functionality
-* Context and Prompt Segmentation: Breaks down prompts into sections (e.g., Context, Question, Answer Prompt) allowing for selective modification and resizing.
-* Adaptive Truncation: Dynamically truncates prompts, prioritizing essential sections, to fit within the limited context window of the language model.
-* Visual Simulation: Demonstrates how prompts will appear with different context sizes, providing a visual tool for planning and adjustments.
+**Truncation Strategies**: Blockflow provides several truncation strategies to manage how text is shortened when it exceeds token limits. These strategies ensure that prompts are trimmed in a way that retains the most important content.
 
-#### Truncation Examples
-* Single Section Truncation: If the context window is too small, the library can truncate less critical sections to preserve the integrity of more important ones (e.g., keeping the Answer Prompt intact).
-* Equitable Reduction: When dealing with multiple sections, the library can reduce each section's size equally or opt to entirely drop less critical sections to fit within the context size.
+- **Right Truncation**: Removes tokens from the end of the text until the token limit is met, ideal for keeping the initial context intact.
 
-#### Goals
-* Ease of Experimentation: Facilitate testing different prompt management strategies to optimize usage of LLM memory.
-* Flexible Truncation Control: Users can define specific truncation points (characters, tokens, words, sentences, paragraphs, newlines) and how truncation is visually indicated (e.g., with ellipses).
-* Independent Section Management: Allows users to edit, resize, and manage individual sections of a prompt independently, making it easier to adapt prompts to changing context sizes.
-* Visualization and Editing Tools: Provides tools to visually simulate and edit prompt layouts to foresee and adjust to how prompts will be truncated or resized.
+- **Left Truncation**: Removes tokens from the beginning, useful when the end of the text contains the most critical information.
 
-#### Additional Features
-Queue Block and Compression: Incorporate advanced features like queuing blocks of prompts and compressing them using summarization techniques to maximize the effective use of LLM's context.
+- **Never Truncate**: Ensures that the text is not truncated, raising an error if the text exceeds the token limit. This is important when it is critical to retain all the content.
+
+**Boundary Conditions**: Blockflow supports various boundary conditions that guide where truncation should occur. These boundaries ensure that truncation happens at logical points within the text, preserving the meaning and structure.
+
+- **Token Boundary**: Truncation can occur at any token, offering maximum flexibility.
+
+- **Line Boundary**: Ensures truncation happens at line breaks, useful for structured text or code.
+
+- **Whitespace Boundary**: Truncation occurs at whitespace, preventing the splitting of words, which helps maintain readability.
+
+- **Sentence Boundary**: Truncation happens at sentence boundaries, ensuring that sentences are not cut off mid-way, which is crucial for maintaining textual coherence.
+
+### Hierarchical Structure: Parent and Child Blocks
+Blockflow's architecture is designed around a hierarchical structure where blocks can contain other blocks, known as child blocks. This parent-child relationship allows for the creation of complex, nested prompt structures that can be managed and truncated as a single entity or at multiple levels.
+
+- **Parent Blocks**: A parent block can encapsulate multiple child blocks, each with its own text content, token limits, and truncation strategies. The parent block oversees the overall structure, applying truncation based on its own parameters and those of its children.
+
+- **Child Blocks**: Child blocks inherit certain characteristics from their parent block but can also have their own distinct properties, such as specific truncation strategies or boundaries. This allows for granular control over each part of the prompt, ensuring that important content is preserved according to its priority within the hierarchy.
+
+- **Truncation Hierarchy**: When a parent block is truncated, the truncation process cascades down to its children. However, child blocks with a "never" truncation strategy are protected, ensuring that crucial parts of the text are not lost. The system carefully balances the token limits of parent and child blocks to maintain the integrity of the prompt.
+
+
+### Example usage
+
+```python
+from blockflow.block import Block, TextBlock
+from blockflow.tokenizer import create_tokenizer
+from rich import print
+
+# Create a tokenizer
+tokenizer = create_tokenizer()
+
+# Define child blocks with individual texts
+child_block_1 = TextBlock(
+    text="This is the first child block.",
+    tokenizer=tokenizer,
+    max_tokens=4,
+    truncate="right",
+    name="child_block_1",
+)
+
+child_block_2 = TextBlock(
+    text="This is the second child block, containing more detailed information.",
+    tokenizer=tokenizer,
+    max_tokens=20,
+    truncate="right",
+    name="child_block_2",
+)
+
+# Define a parent block that contains the child blocks
+parent_block = Block(
+    name="Parent Block",
+    max_tokens=10,
+    truncate="right",
+    separator=" | ",
+    tokenizer=tokenizer,
+    children=[child_block_1, child_block_2],
+)
+
+# Get the truncated text for the parent block, which includes its children
+truncated_text = parent_block.rich_text()
+print(truncated_text)
+
+```
+
+### Installation
+You can install Blockflow directly from PyPI using pip:
+
+```bash
+pip install blockflow
+```
+
+### Contributing
+Contributions to Blockflow are welcome! Please fork the repository, make your changes, and submit a pull request.
+
+### License
+Blockflow is licensed under the apache License. See the LICENSE file for more details.
+
+### Contact
+For questions or feedback, feel free to open an issue on GitHub or contact the project maintainers directly.
+
