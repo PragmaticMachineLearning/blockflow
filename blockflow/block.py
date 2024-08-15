@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Callable, Literal
+from typing import Callable
 
 from rich.console import Group
 from rich.panel import Panel
@@ -72,7 +72,7 @@ class Block(AbstractBlock):
         # Initialize the Block with various parameters including children, text, name, etc.
         self._initialize_basic_properties(
             children,
-            text,
+            # text,
             name,
             max_tokens,
             truncate,
@@ -89,10 +89,13 @@ class Block(AbstractBlock):
         # If text is provided, create a TextBlock from it and prepend it to the children
         self._prepend_text_block(text)
 
+        # Validate that the children's max_tokens do not exceed the parent's max_tokens if truncation_strategy is "never"
+        # self._validate_children_max_tokens(max_tokens=max_tokens, truncation_strategy=truncate)
+
     def _initialize_basic_properties(
         self,
         children,
-        text,
+        # text,
         name,
         max_tokens,
         truncate,
@@ -131,12 +134,13 @@ class Block(AbstractBlock):
         if self.separator and self.children:
             # Add separator object between each child
             children_with_separators = []
-            for i, child in enumerate(self.children[:-1]):
+            for _, child in enumerate(self.children[:-1]):
                 children_with_separators.append(child)
                 # Add a separator after each child except the last one
                 children_with_separators.append(
                     TextBlock(text=self.separator, name="separator")
                 )
+            # add the last child without a separator
             children_with_separators.append(self.children[-1])
             self.children = children_with_separators
 
@@ -148,7 +152,7 @@ class Block(AbstractBlock):
                 prepend.append(TextBlock(text=self.separator, name="separator"))
             self.children = prepend + self.children
 
-    def _validate_children_max_tokens(self, max_tokens, truncation_strategy):
+    def _validate_children_max_tokens(self, max_tokens: int, truncation_strategy: str):
         # Only proceed if the parent has a max_tokens limit set
         if self.max_tokens is None:
             return
@@ -161,13 +165,15 @@ class Block(AbstractBlock):
 
         # Check if any child's max_tokens exceed the parent's max_tokens
         for child in self.children:
-            if child.truncation_strategy == "never":
-                if len(child.tokens().tokens) > self.max_tokens:
+            if child.truncation_strategy == "never" and child.max_tokens is not None:
+
+                if child.max_tokens > self.max_tokens:
                     raise ValueError(
-                        f"Child '{child.name}' has {len(child.tokens().tokens)} tokens "
+                        f"Child '{child.name}' has {child.max_tokens} tokens "
                         f"exceeding the parent's max_tokens ({self.max_tokens})."
                     )
-
+            else:
+                pass
         # Check if the total tokens of all children exceed the parent's max_tokens
         if total_tokens_count > self.max_tokens:
             raise ValueError(
@@ -183,6 +189,11 @@ class Block(AbstractBlock):
             truncate=self.truncation_strategy,
         )
 
+    def set_tokenizer(self, tokenizer):
+        self._tokenizer = tokenizer
+        for child in self.children:
+            child.set_tokenizer(tokenizer=tokenizer)
+
     def _ensure_tokenizer_set(self):
         if isinstance(self._tokenizer, str):
             raise ValueError(
@@ -191,11 +202,6 @@ class Block(AbstractBlock):
         if self._tokenizer is None:
             raise ValueError("Tokenizer must be explicitly provided")
         self.set_tokenizer(self._tokenizer)
-
-    def set_tokenizer(self, tokenizer):
-        self._tokenizer = tokenizer
-        for child in self.children:
-            child.set_tokenizer(tokenizer=tokenizer)
 
     def full_tokens(self) -> Encoding:
         self._ensure_tokenizer_set()
@@ -224,7 +230,9 @@ class Block(AbstractBlock):
     def sort_by_reading_order(self, blocks: list["Block | TextBlock"]):
         return sorted(blocks, key=lambda x: x.reading_order_idx)
 
-    def truncate_node(self, node: list | NodeData, tokens_seen: int = 0) -> dict[str, NodeData|Encoding]:
+    def truncate_node(
+        self, node: list[str | Encoding] | NodeData, tokens_seen: int = 0
+    ) -> dict[str, NodeData | Encoding]:
         number_allowed = max(self.max_tokens - tokens_seen, 0)
         if isinstance(node, dict):
             revised_node = {}
@@ -257,6 +265,7 @@ class Block(AbstractBlock):
                 ]
             )
             revised_node["tokens"] = parent_truncated_tokens["tokens"]
+            revised_node["name"] = node.get("name", "")
             tokens_seen += len(revised_node["tokens"].ids)
             return {
                 "revised_node": revised_node,
@@ -294,7 +303,7 @@ class Block(AbstractBlock):
             child_result = {
                 "remainder_left": Encoding(),
                 "remainder_right": Encoding(),
-                "name": child.name or "",
+                "name": child.name or self.name,
             }
             if (
                 self.max_tokens is None
@@ -314,7 +323,6 @@ class Block(AbstractBlock):
         sorted_result = sorted(
             zip(self.children, result), key=lambda pair: pair[0].reading_order_idx
         )
-
         self.children = self.sort_by_reading_order(self.children)
 
         return [child_tree for (_, child_tree) in sorted_result]
@@ -343,6 +351,7 @@ class Block(AbstractBlock):
 
     def format_node(self, node: list | NodeData) -> Panel:
         # print("Examining node", node[0].keys())
+
         if isinstance(node, dict):
             left_text = self._tokenizer.decode(node["remainder_left"].ids)
             inner_text = self._tokenizer.decode(node["tokens"].ids)
@@ -351,23 +360,41 @@ class Block(AbstractBlock):
             display_text.append(left_text, style="bold magenta")
             display_text.append(inner_text, style="bold blue")
             display_text.append(right_text, style="bold magenta")
-
             return Panel(
                 display_text,
-                title=node["name"] or "",
+                title=node["name"],
                 title_align="left",
                 border_style="bold blue",
             )
-        elif isinstance(node, list):
-            return Panel(
-                Group(*[self.format_node(child_node) for child_node in node]),
-                # TODO: need to wire name through properly here
-                title="",
-                title_align="left",
-                border_style="bold blue",
-            )
+
+        if isinstance(node, list):
+
+            titles = self.extract_names_from_list(node)
+
+            print(f"{titles=}")
+            for title in titles:
+                return Panel(
+                    Group(*[self.format_node(child_node) for child_node in node]),
+                    # TODO: need to wire name through properly here
+                    # title=child.get("name"),
+                    title=title,
+                    title_align="left",
+                    border_style="bold blue",
+                )
         else:
             raise TypeError(f"Unexpected type {type(node)} in tree")
+
+    def extract_names_from_list(self, node_list: list) -> str:
+        """Helper function to extract names from a list of nodes."""
+        names = []
+        for node in node_list:
+            if isinstance(node, dict):
+                # if node is a dictionary, extract the name
+                names.append(node.get("name", ""))
+            elif isinstance(node, list):
+                # if node is a list, recursively extract names from the list
+                names.append(self.extract_names_from_list(node))
+        return names
 
     def rich_text(
         self,

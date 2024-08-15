@@ -1,4 +1,0 @@
-
-class TruncationError(ValueError):
-    pass
-    
